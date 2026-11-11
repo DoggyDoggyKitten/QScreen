@@ -1,6 +1,14 @@
 #import "QScreen.h"
 #import <ScreenSaver/ScreenSaver.h>
 #import <dlfcn.h>
+#import <objc/runtime.h>
+
+static IMP originalFontFactory;
+static BOOL failNextFont = NO;
+static NSFont *fontFactory(id receiver, SEL selector, NSFontDescriptor *descriptor, CGFloat size) {
+    if (failNextFont) { failNextFont = NO; return nil; }
+    return ((NSFont *(*)(id,SEL,NSFontDescriptor *,CGFloat))originalFontFactory)(receiver,selector,descriptor,size);
+}
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
@@ -30,6 +38,25 @@ int main(int argc, const char *argv[]) {
         ScreenSaverView *preview=[[principal alloc] initWithFrame:NSMakeRect(0,0,640,400) isPreview:YES];
         [preview startAnimation]; [preview animateOneFrame]; [preview stopAnimation]; [preview animateOneFrame];
         if (!preview.isPreview || preview.isAnimating) return 1;
+        // A rounded descriptor can exist while fontWithDescriptor:size: returns nil.
+        // Reproduce that one failure without affecting subsequent AppKit font calls.
+        QSSceneView *fallbackView=[[NSClassFromString(@"QSSceneView") alloc] initWithFrame:NSMakeRect(0,0,640,400)];
+        fallbackView.session=session(@"offwork",0,now);
+        NSBitmapImageRep *fallbackBitmap=[fallbackView bitmapImageRepForCachingDisplayInRect:fallbackView.bounds];
+        Method factory=class_getClassMethod(NSFont.class,@selector(fontWithDescriptor:size:));
+        originalFontFactory=method_setImplementation(factory,(IMP)fontFactory);
+        failNextFont=YES;
+        BOOL failed=NO;
+        @try {
+            [fallbackView cacheDisplayInRect:fallbackView.bounds toBitmapImageRep:fallbackBitmap];
+        } @catch (NSException *exception) {
+            NSLog(@"FAIL: font fallback raised %@",exception.name);
+            failed=YES;
+        } @finally {
+            method_setImplementation(factory,originalFontFactory);
+        }
+        if (failed || failNextFont) return 1;
+        puts("Passed: missing rounded font falls back without crashing live rendering.");
         puts("Passed: rendered all six scenes and loaded native screen saver lifecycle.");
     }
 }

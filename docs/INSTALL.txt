@@ -1,4 +1,4 @@
-QScreen 0.1.0
+QScreen
 
 1. 将 QScreen.app 放到「应用程序」或用户的 Applications 文件夹，再打开。
 2. 在 QScreen 的「设置」中点击「安装」屏保。

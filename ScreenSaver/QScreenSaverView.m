@@ -2,6 +2,7 @@
 #import <ScreenSaver/ScreenSaver.h>
 #import <IOKit/pwr_mgt/IOPMLib.h>
 #import <QuartzCore/QuartzCore.h>
+#import <os/log.h>
 
 @interface QScreenSaverView : ScreenSaverView
 @property (nonatomic, strong) QSSceneView *scene;
@@ -24,6 +25,7 @@
 }
 - (void)startAnimation {
     [super startAnimation];
+    os_log_with_type(OS_LOG_DEFAULT,OS_LOG_TYPE_DEFAULT,"QScreen saver started preview=%{public}d",self.isPreview);
     self.beganAnimating=CACurrentMediaTime();
     self.lastRefresh=0;
     self.scene.session=QSStateStore.readSession;
@@ -44,7 +46,9 @@
         (__bridge NSString *)kIOPMAssertionTimeoutActionKey:(__bridge NSString *)kIOPMAssertionTimeoutActionRelease
     };
     IOPMAssertionID assertion=kIOPMNullAssertionID;
-    if (IOPMAssertionCreateWithProperties((__bridge CFDictionaryRef)properties,&assertion)==kIOReturnSuccess) self.displayAssertion=assertion;
+    IOReturn result=IOPMAssertionCreateWithProperties((__bridge CFDictionaryRef)properties,&assertion);
+    if (result==kIOReturnSuccess) self.displayAssertion=assertion;
+    else os_log_error(OS_LOG_DEFAULT,"QScreen display assertion failed result=%{public}d",result);
 }
 - (void)releaseDisplayLease {
     if (self.displayAssertion!=kIOPMNullAssertionID) {
@@ -68,7 +72,10 @@
     }
     self.scene.animationTime=CACurrentMediaTime()-self.beganAnimating;
 }
-- (void)stopAnimation { [self releaseDisplayLease]; [super stopAnimation]; }
+- (void)stopAnimation {
+    os_log_with_type(OS_LOG_DEFAULT,OS_LOG_TYPE_DEFAULT,"QScreen saver stopped preview=%{public}d",self.isPreview);
+    [self releaseDisplayLease]; [super stopAnimation];
+}
 - (void)dealloc { [self releaseDisplayLease]; }
 - (BOOL)hasConfigureSheet { return NO; }
 @end

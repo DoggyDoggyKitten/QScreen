@@ -166,7 +166,7 @@ struct SettingsView: View {
                     Button(model.trusted ? "已授权" : "授权") { model.requestAccessibility() }.disabled(model.trusted)
                 }
             }.padding(15).background(paper).clipShape(RoundedRectangle(cornerRadius: 16))
-            Text("在系统设置的「墙纸 → 屏幕保护程序」中选择 QScreen。辅助功能权限用于发送系统锁屏快捷键。")
+            Text("墙纸 → Screen Saver… → Custom → QScreen。选中后回到这里点「已选好」。辅助功能权限用于发送系统锁屏快捷键。")
                 .font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             VStack(alignment: .leading, spacing: 14) {
                 Text("屏幕展示").font(.system(size: 14, weight: .semibold))
@@ -185,7 +185,8 @@ struct SettingsView: View {
             }
             Spacer()
             HStack {
-                Text("QScreen 0.1").font(.system(size: 11)).foregroundStyle(.tertiary)
+                Text("QScreen " + (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""))
+                    .font(.system(size: 11)).foregroundStyle(.tertiary)
                 Spacer()
                 Button("退出 QScreen") { NSApp.terminate(nil) }.buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(.secondary)
             }

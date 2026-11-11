@@ -33,8 +33,12 @@ static void text(NSString *string, NSRect rect, CGFloat size, NSFontWeight weigh
     style.alignment = NSTextAlignmentCenter; style.lineBreakMode = NSLineBreakByClipping;
     NSFont *base = [NSFont systemFontOfSize:size weight:weight];
     NSFontDescriptor *descriptor = [base.fontDescriptor fontDescriptorWithDesign:NSFontDescriptorSystemDesignRounded];
-    NSFont *font = descriptor ? [NSFont fontWithDescriptor:descriptor size:size] : base;
-    [string drawInRect:rect withAttributes:@{NSFontAttributeName:font, NSForegroundColorAttributeName:color, NSParagraphStyleAttributeName:style}];
+    NSFont *font = descriptor ? [NSFont fontWithDescriptor:descriptor size:size] : nil;
+    if (!font) font = base;
+    NSMutableDictionary *attributes = [@{NSForegroundColorAttributeName:color ?: NSColor.labelColor,
+                                        NSParagraphStyleAttributeName:style} mutableCopy];
+    if (font) attributes[NSFontAttributeName] = font;
+    [string drawInRect:rect withAttributes:attributes];
 }
 static NSColor *bodyColor(NSString *reason) {
     return QSColor([@{@"lunch":@0xBD8865, @"meeting":@0xEBDDC9, @"coffee":@0x919DA9,

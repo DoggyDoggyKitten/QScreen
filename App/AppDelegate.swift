@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var handler: EventHandlerRef?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Diagnostics.log("app.started")
         NSApp.setActivationPolicy(.accessory)
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(systemSymbolName: "sparkles.rectangle.stack", accessibilityDescription: "QScreen 离席")
@@ -79,6 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 NSApp.terminate(nil)
             }
         }
+        Diagnostics.snapshot(model)
     }
 
     func showMainWindow() {
@@ -204,7 +206,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
-    func application(_ application: NSApplication, open urls: [URL]) { showMainWindow() }
+    func application(_ application: NSApplication, open urls: [URL]) {
+        if urls.contains(where: { $0.host == "diagnostics" }) {
+            Diagnostics.snapshot(model)
+            return
+        }
+        showMainWindow()
+    }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { showMainWindow(); return true }
     func applicationWillTerminate(_ notification: Notification) {
         closePreview()

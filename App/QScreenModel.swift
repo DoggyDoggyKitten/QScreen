@@ -60,6 +60,7 @@ final class QScreenModel: ObservableObject {
 
     func startAway() {
         refreshReadiness()
+        Diagnostics.log("away.request installed=\(installed) accessibility=\(trusted) selection=\(selectedInSystem)")
         guard ready else {
             dismissPopover?()
             settingsVisible = true
@@ -74,10 +75,12 @@ final class QScreenModel: ObservableObject {
         }
         let session = sceneSession
         guard QSStateStore.writeSession(session as! [AnyHashable: Any]) else {
+            Diagnostics.log("away.save.failed")
             error = "未能保存离席状态，请重试。"
             return
         }
         activeSession = session
+        Diagnostics.log("away.saved reason=\(selectedReason) minutes=\(duration)")
         dismissPopover?()
         lock?()
         down.flags = [.maskControl, .maskCommand]
@@ -86,22 +89,30 @@ final class QScreenModel: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
             down.post(tap: .cghidEventTap)
             up.post(tap: .cghidEventTap)
+            Diagnostics.log("lock.shortcut.posted")
         }
         // The system remains responsible for authentication. Starting the engine
         // only requests the currently selected saver; it never substitutes a fake lock.
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            Diagnostics.log("saver.launch.requested")
             let engine = URL(fileURLWithPath: "/System/Library/CoreServices/ScreenSaverEngine.app")
             let configuration = NSWorkspace.OpenConfiguration()
             configuration.activates = false
             NSWorkspace.shared.openApplication(at: engine, configuration: configuration) { [weak self] _, failure in
                 if let failure {
-                    Task { @MainActor in self?.error = "屏保未能启动：\(failure.localizedDescription)" }
+                    Task { @MainActor in
+                        Diagnostics.log("saver.launch.failed \(failure.localizedDescription)")
+                        self?.error = "屏保未能启动：\(failure.localizedDescription)"
+                    }
+                } else {
+                    Task { @MainActor in Diagnostics.log("saver.launch.accepted") }
                 }
             }
         }
     }
 
     func endAway() {
+        if activeSession != nil { Diagnostics.log("away.cleared") }
         QSStateStore.clearSession()
         activeSession = nil
     }
