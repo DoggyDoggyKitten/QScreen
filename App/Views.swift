@@ -127,10 +127,10 @@ struct MainView: View {
                         }
                         Spacer()
                         Button { model.startAway() } label: {
-                            Label("开始离席并锁屏", systemImage: "lock.fill")
+                            Label(model.starting ? "正在启动…" : "开始离席并锁屏", systemImage: "lock.fill")
                                 .font(.system(size: 14, weight: .semibold)).padding(.horizontal, 17).padding(.vertical, 13)
                                 .foregroundStyle(.white).background(accent).clipShape(RoundedRectangle(cornerRadius: 12))
-                        }.buttonStyle(.plain).keyboardShortcut(.return, modifiers: .command)
+                        }.buttonStyle(.plain).keyboardShortcut(.return, modifiers: .command).disabled(model.starting)
                     }.padding(.top, 15)
                 }
             }.padding(28).frame(maxWidth: .infinity, maxHeight: .infinity).background(Color.white)
@@ -162,16 +162,16 @@ struct SettingsView: View {
                     }
                 }
                 Divider().padding(.leading, 35)
-                setupRow("允许一键锁屏", done: model.trusted) {
+                setupRow("退出屏保时立即要求密码", done: model.lockPolicy == .immediate) {
                     HStack(spacing: 10) {
-                        if !model.trusted {
-                            Button("重启检查") { model.relaunch?() }
+                        if model.lockPolicy != .immediate {
+                            Button("重新检查") { model.refreshLockPolicy() }
                         }
-                        Button(model.trusted ? "已授权" : "授权") { model.requestLockPermission() }.disabled(model.trusted)
+                        Button("打开锁屏设置") { model.openLockSettings() }
                     }
                 }
             }.padding(15).background(paper).clipShape(RoundedRectangle(cornerRadius: 16))
-            Text("墙纸 → Screen Saver… → Custom → QScreen。选中后回到这里点「已选好」。辅助功能权限用于发送系统锁屏快捷键。")
+            Text("墙纸 → Screen Saver… → Custom → QScreen。选中后回到这里点「已选好」。系统锁屏设置中，启动屏保后要求密码须设为「立即」。")
                 .font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             VStack(alignment: .leading, spacing: 14) {
                 Text("屏幕展示").font(.system(size: 14, weight: .semibold))
@@ -225,7 +225,7 @@ struct QuickPicker: View {
                             Text(QSReasonTitle(reason)).font(.system(size: 13, weight: .medium))
                             Spacer()
                         }.contentShape(Rectangle())
-                    }.buttonStyle(.plain).help("选择并锁屏")
+                    }.buttonStyle(.plain).help("选择并锁屏").disabled(model.starting)
                     if reason != "offwork" {
                         Menu {
                             ForEach([5, 10, 15, 30, 45, 60, 90, 120], id: \.self) { value in

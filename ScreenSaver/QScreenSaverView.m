@@ -25,10 +25,12 @@
 }
 - (void)startAnimation {
     [super startAnimation];
-    os_log_with_type(OS_LOG_DEFAULT,OS_LOG_TYPE_DEFAULT,"QScreen saver started preview=%{public}d",self.isPreview);
     self.beganAnimating=CACurrentMediaTime();
     self.lastRefresh=0;
     self.scene.session=QSStateStore.readSession;
+    os_log_with_type(OS_LOG_DEFAULT,OS_LOG_TYPE_DEFAULT,
+                     "QScreen saver started preview=%{public}d reason=%{public}@ hasETA=%{public}d",
+                     self.isPreview,self.scene.session[@"reason"],[self.scene.session[@"endsAt"] doubleValue]>0);
     [self refreshDisplayLease];
 }
 - (void)refreshDisplayLease {

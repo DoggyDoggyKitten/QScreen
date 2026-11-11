@@ -1,5 +1,4 @@
 import AppKit
-import CoreGraphics
 import SwiftUI
 
 @MainActor
@@ -8,7 +7,8 @@ final class QScreenModel: ObservableObject {
     @Published var durations: [String: Int] = [:]
     @Published var activeSession: NSDictionary?
     @Published var installed = false
-    @Published var trusted = false
+    @Published var lockPolicy: ScreenLockPolicy = .unknown
+    @Published var starting = false
     @Published var selectedInSystem = UserDefaults.standard.bool(forKey: "selectedInSystem")
     @Published var settingsVisible = false
     @Published var error: String?
@@ -16,17 +16,17 @@ final class QScreenModel: ObservableObject {
     @Published var hotkeyAvailable = true
     var showWindow: (() -> Void)?
     var showPreview: (() -> Void)?
-    var lock: (() -> Void)?
+    var prepareForSaver: (() -> Void)?
     var dismissPopover: (() -> Void)?
-    var relaunch: (() -> Void)?
     private var refreshTimer: Timer?
+    private var checkingPolicy = false
 
     let reasons = ["lunch", "meeting", "coffee", "restroom", "away", "offwork"]
     var saverDestination: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Screen Savers/QScreen.saver")
     }
-    var ready: Bool { installed && trusted && selectedInSystem }
+    var ready: Bool { installed && lockPolicy == .immediate && selectedInSystem }
     var duration: Int { durations[selectedReason] ?? QSDefaultMinutes(selectedReason) }
     var sceneSession: NSDictionary {
         QSSession(selectedReason, duration, Date().timeIntervalSince1970) as NSDictionary
@@ -35,6 +35,7 @@ final class QScreenModel: ObservableObject {
     init() {
         for reason in reasons { durations[reason] = QSStateStore.minutes(forReason: reason) }
         refreshReadiness()
+        refreshLockPolicy()
         let stored = QSStateStore.readSession() as NSDictionary
         if stored["id"] != nil { activeSession = stored }
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
@@ -44,7 +45,16 @@ final class QScreenModel: ObservableObject {
 
     func refreshReadiness() {
         installed = FileManager.default.fileExists(atPath: saverDestination.appendingPathComponent("Contents/MacOS/QScreen").path)
-        trusted = CGPreflightPostEventAccess()
+    }
+
+    func refreshLockPolicy() {
+        guard !checkingPolicy else { return }
+        checkingPolicy = true
+        Task { [weak self] in
+            let policy = await Task.detached(priority: .utility) { ScreenLockPolicy.read() }.value
+            self?.lockPolicy = policy
+            self?.checkingPolicy = false
+        }
     }
 
     func setDuration(_ minutes: Int, reason: String? = nil) {
@@ -55,58 +65,66 @@ final class QScreenModel: ObservableObject {
     }
 
     func chooseAndStart(_ reason: String) {
+        guard !starting else { return }
         selectedReason = reason
         startAway()
     }
 
-    func startAway() {
+    func startAway(reason overrideReason: String? = nil, minutes overrideMinutes: Int? = nil) {
+        guard !starting else { return }
         refreshReadiness()
-        Diagnostics.log("away.request installed=\(installed) eventPosting=\(trusted) selection=\(selectedInSystem)")
-        guard ready else {
+        Diagnostics.log("away.request installed=\(installed) selection=\(selectedInSystem)")
+        guard installed && selectedInSystem else {
             dismissPopover?()
             settingsVisible = true
             showWindow?()
             return
         }
-        guard let source = CGEventSource(stateID: .hidSystemState),
-              let down = CGEvent(keyboardEventSource: source, virtualKey: 0x0C, keyDown: true),
-              let up = CGEvent(keyboardEventSource: source, virtualKey: 0x0C, keyDown: false) else {
-            error = "无法发送锁屏快捷键，请重试。"
-            return
-        }
-        let session = sceneSession
-        guard QSStateStore.writeSession(session as! [AnyHashable: Any]) else {
-            Diagnostics.log("away.save.failed")
-            error = "未能保存离席状态，请重试。"
-            return
-        }
-        activeSession = session
-        Diagnostics.log("away.saved reason=\(selectedReason) minutes=\(duration)")
-        dismissPopover?()
-        lock?()
-        down.flags = [.maskControl, .maskCommand]
-        up.flags = [.maskControl, .maskCommand]
-        // Let the triggering click finish before sending Control-Command-Q.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            down.post(tap: .cghidEventTap)
-            up.post(tap: .cghidEventTap)
-            Diagnostics.log("lock.shortcut.posted")
-        }
-        // The system remains responsible for authentication. Starting the engine
-        // only requests the currently selected saver; it never substitutes a fake lock.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-            Diagnostics.log("saver.launch.requested")
-            let engine = URL(fileURLWithPath: "/System/Library/CoreServices/ScreenSaverEngine.app")
-            let configuration = NSWorkspace.OpenConfiguration()
-            configuration.activates = false
-            NSWorkspace.shared.openApplication(at: engine, configuration: configuration) { [weak self] _, failure in
-                if let failure {
+        let reason = overrideReason ?? selectedReason, minutes = overrideMinutes ?? duration
+        starting = true
+        Task { [weak self] in
+            guard let self else { return }
+            defer { self.starting = false }
+            // Check again for every departure; a cached green check must never
+            // allow an unprotected saver after the system policy changes.
+            let policy = await Task.detached(priority: .userInitiated) { ScreenLockPolicy.read() }.value
+            self.lockPolicy = policy
+            Diagnostics.log("lock.policy.checked value=\(policy.rawValue)")
+            guard policy == .immediate else {
+                self.dismissPopover?()
+                self.settingsVisible = true
+                self.showWindow?()
+                self.error = "请先在系统锁屏设置中，将启动屏保后要求输入密码设为「立即」。"
+                return
+            }
+            let session = QSSession(reason, minutes, Date().timeIntervalSince1970)
+            guard QSStateStore.writeSession(session) else {
+                Diagnostics.log("away.save.failed")
+                self.error = "未能保存离席状态，请重试。"
+                return
+            }
+            self.activeSession = session as NSDictionary
+            Diagnostics.log("away.saved reason=\(reason) minutes=\(minutes)")
+            self.dismissPopover?()
+            self.prepareForSaver?()
+            // Let the click finish. The native saver supplies the secure lock
+            // under the verified immediate-password policy; no synthetic keys.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+                Diagnostics.log("saver.launch.requested nativeImmediateLock=true")
+                let engine = URL(fileURLWithPath: "/System/Library/CoreServices/ScreenSaverEngine.app")
+                let configuration = NSWorkspace.OpenConfiguration()
+                configuration.activates = true
+                NSWorkspace.shared.openApplication(at: engine, configuration: configuration) { [weak self] _, failure in
                     Task { @MainActor in
-                        Diagnostics.log("saver.launch.failed \(failure.localizedDescription)")
-                        self?.error = "屏保未能启动：\(failure.localizedDescription)"
+                        if let failure {
+                            Diagnostics.log("saver.launch.failed \(failure.localizedDescription)")
+                            self?.endAway()
+                            self?.error = "屏保未能启动：\(failure.localizedDescription)"
+                            self?.showWindow?()
+                        } else {
+                            Diagnostics.log("saver.launch.accepted")
+                        }
                     }
-                } else {
-                    Task { @MainActor in Diagnostics.log("saver.launch.accepted") }
                 }
             }
         }
@@ -143,12 +161,8 @@ final class QScreenModel: ObservableObject {
     func openScreenSaverSettings() {
         openSettings("x-apple.systempreferences:com.apple.Wallpaper-Settings.extension")
     }
-    func requestLockPermission() {
-        Diagnostics.log("permission.postEvent.requested")
-        trusted = CGRequestPostEventAccess()
-        if !trusted {
-            openSettings("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
-        }
+    func openLockSettings() {
+        openSettings("x-apple.systempreferences:com.apple.Lock-Screen-Settings.extension")
     }
     private func openSettings(_ address: String) {
         guard let url = URL(string: address), NSWorkspace.shared.open(url) else {

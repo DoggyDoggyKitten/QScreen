@@ -12,7 +12,7 @@ for arch in arm64 x86_64; do
     -c -I Shared Shared/QSSceneView.m -o "build/obj/$arch/QSSceneView.o"
   xcrun swiftc -swift-version 5 -warnings-as-errors -O -parse-as-library -target "$arch-apple-macosx13.0" \
     -module-cache-path build/module-cache -I Shared -import-objc-header Shared/QScreen-Bridging.h \
-    App/Entry.swift App/QScreenModel.swift App/Views.swift App/AppDelegate.swift App/Diagnostics.swift \
+    App/Entry.swift App/QScreenModel.swift App/Views.swift App/AppDelegate.swift App/Diagnostics.swift App/ScreenLockPolicy.swift \
     "build/obj/$arch/QSState.o" "build/obj/$arch/QSSceneView.o" \
     -framework AppKit -framework SwiftUI -framework ScreenSaver -framework QuartzCore \
     -framework Carbon -framework ApplicationServices -o "build/obj/$arch/QScreen"

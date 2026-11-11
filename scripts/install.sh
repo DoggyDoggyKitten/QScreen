@@ -27,5 +27,5 @@ install_bundle() {
 }
 install_bundle build/QScreen.app "$HOME/Applications/QScreen.app" com.qscreen.app
 install_bundle build/QScreen.saver "$HOME/Library/Screen Savers/QScreen.saver" com.qscreen.saver
-printf '%s\n' 'Installed. Open ~/Applications/QScreen.app, then finish the system screen saver selection and lock permission.'
+printf '%s\n' 'Installed. Open ~/Applications/QScreen.app, select QScreen as the system saver and require a password immediately after the saver starts.'
 

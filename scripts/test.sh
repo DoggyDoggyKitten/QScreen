@@ -6,6 +6,9 @@ xcrun clang -fobjc-arc -Wall -Wextra -Werror -I Shared \
   Shared/QSState.m Tests/StateTests.m -framework AppKit -framework ScreenSaver \
   -o build/tests/state-tests
 build/tests/state-tests
+xcrun swiftc -swift-version 5 -warnings-as-errors -parse-as-library \
+  App/ScreenLockPolicy.swift Tests/ScreenLockPolicyTests.swift -o build/tests/lock-policy-tests
+build/tests/lock-policy-tests
 xcrun clang -fobjc-arc -Wall -Wextra -Werror -I Shared \
   '-DQS_PREFERENCES_DOMAIN=@"com.qscreen.saver.tests"' \
   Shared/QSState.m Tests/StoreProbe.m -framework AppKit -framework ScreenSaver \

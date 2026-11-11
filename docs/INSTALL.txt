@@ -3,7 +3,7 @@ QScreen
 1. 将 QScreen.app 放到「应用程序」或用户的 Applications 文件夹，再打开。
 2. 在 QScreen 的「设置」中点击「安装」屏保。
 3. 打开系统「墙纸」，点击顶部「Screen Saver…」，把「Automatic」改为「Custom」，在「Other／其他」中选择 QScreen。
-4. 回到 QScreen 点击「已选好」，再点击「授权」，在辅助功能中允许 QScreen。
+4. 回到 QScreen 点击「已选好」。确认系统锁屏设置中，启动屏保后要求密码为「立即」。无需辅助功能授权。
 5. 点击菜单栏图标或按 Control + Option + Q，选择状态并开始离席。
 
 点击右侧分钟数可以调整返回时间。全屏预览不锁屏，按任意键或点击退出。
