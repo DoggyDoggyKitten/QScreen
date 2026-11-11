@@ -74,7 +74,7 @@ static NSColor *backgroundColor(NSString *reason) {
     NSAffineTransform *transform = NSAffineTransform.transform;
     [transform translateXBy:(self.bounds.size.width - canvasW*scale)/2 yBy:(self.bounds.size.height - canvasH*scale)/2];
     [transform scaleBy:scale]; [transform concat];
-    double t = self.animationTime;
+    double t = NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion ? 0 : self.animationTime;
     CGFloat bob = sin(t*1.8)*5;
     CGFloat cx = self.characterOnly ? 250 : 600;
     CGFloat cy = self.characterOnly ? 245 : 310;
