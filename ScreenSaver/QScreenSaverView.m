@@ -8,6 +8,7 @@
 @property (nonatomic, strong) QSSceneView *scene;
 @property (nonatomic) CFTimeInterval beganAnimating;
 @property (nonatomic) NSTimeInterval lastRefresh;
+@property (nonatomic) NSTimeInterval lastStateRequest;
 @property (nonatomic) NSTimeInterval displayDeadline;
 @property (nonatomic) IOPMAssertionID displayAssertion;
 @end
@@ -17,6 +18,7 @@
     if ((self=[super initWithFrame:frame isPreview:preview])) {
         self.animationTimeInterval=1.0/30.0;
         _displayAssertion=kIOPMNullAssertionID;
+        [QSStateStore startReceiving];
         _scene=[[QSSceneView alloc] initWithFrame:self.bounds];
         _scene.session=QSStateStore.readSession;
         [self addSubview:_scene];
@@ -27,6 +29,8 @@
     [super startAnimation];
     self.beganAnimating=CACurrentMediaTime();
     self.lastRefresh=0;
+    self.lastStateRequest=NSDate.date.timeIntervalSince1970;
+    [QSStateStore requestPublishedState];
     self.scene.session=QSStateStore.readSession;
     os_log_with_type(OS_LOG_DEFAULT,OS_LOG_TYPE_DEFAULT,
                      "QScreen saver started preview=%{public}d reason=%{public}@ hasETA=%{public}d",
@@ -62,10 +66,18 @@
     // Some hosts call another frame after stopAnimation. Never reacquire a lease there.
     if (!self.isAnimating) return;
     NSTimeInterval now=NSDate.date.timeIntervalSince1970;
+    // Distributed notifications can be dropped; periodically repeat the handshake.
+    if (now-self.lastStateRequest>=5) {
+        [QSStateStore requestPublishedState];
+        self.lastStateRequest=now;
+    }
     if (now-self.lastRefresh>=1) {
         NSDictionary *session=QSStateStore.readSession;
         if (![session isEqual:self.scene.session]) {
             self.scene.session=session;
+            os_log_with_type(OS_LOG_DEFAULT,OS_LOG_TYPE_DEFAULT,
+                             "QScreen state updated reason=%{public}@ hasETA=%{public}d",
+                             session[@"reason"],[session[@"endsAt"] doubleValue]>0);
             [self refreshDisplayLease];
         }
         self.scene.referenceTime=now;

@@ -18,6 +18,14 @@ build/tests/store-probe write
 build/tests/store-probe read
 build/tests/store-probe clear
 build/tests/store-probe empty
+for role in provider client; do
+  xcrun clang -fobjc-arc -Wall -Wextra -Werror -I Shared \
+    "-DQS_PREFERENCES_DOMAIN=@\"com.qscreen.saver.tests.$role\"" \
+    '-DQS_RUNTIME_CHANNEL=@"com.qscreen.bridge.tests"' \
+    Shared/QSState.m Tests/BridgeProbe.m -framework AppKit -framework ScreenSaver \
+    -o "build/tests/bridge-$role"
+done
+python3 Tests/BridgeTests.py
 bash scripts/build-saver.sh
 xcrun clang -fobjc-arc -Wall -Wextra -Werror -I Shared \
   Tests/RenderTests.m -framework AppKit -framework ScreenSaver \

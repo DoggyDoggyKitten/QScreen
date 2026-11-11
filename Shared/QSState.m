@@ -6,6 +6,12 @@
 #define QS_PREFERENCES_DOMAIN @"com.qscreen.saver"
 #endif
 NSString * const QSModuleIdentifier = QS_PREFERENCES_DOMAIN;
+#ifndef QS_RUNTIME_CHANNEL
+#define QS_RUNTIME_CHANNEL @"com.qscreen.saver.runtime"
+#endif
+static BOOL publishing = NO, receiving = NO;
+static NSDictionary *receivedSession;
+static NSNumber *receivedOvertime;
 
 NSArray<NSString *> *QSReasons(void) {
     return @[@"lunch", @"meeting", @"coffee", @"restroom", @"away", @"offwork"];
@@ -57,23 +63,72 @@ NSTimeInterval QSDisplayDeadline(NSDictionary *session, NSInteger overtimeMinute
 }
 
 @implementation QSStateStore
++ (void)startPublishing {
+    if (publishing) return;
+    publishing = YES;
+    [NSDistributedNotificationCenter.defaultCenter addObserver:self selector:@selector(publishState:)
+        name:[QS_RUNTIME_CHANNEL stringByAppendingString:@".request"] object:nil
+        suspensionBehavior:NSNotificationSuspensionBehaviorDeliverImmediately];
+}
++ (void)publishState:(NSNotification *)notification {
+    (void)notification;
+    if (!publishing) return;
+    NSDictionary *payload = @{@"version": @1, @"session": self.readSession, @"overtime": @(self.overtimeMinutes)};
+    NSData *data = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
+    NSString *json = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+    if (json) {
+        // Sandboxed receivers support a string object with nil userInfo. Preferences
+        // remain local to each process; no access to the host's container is needed.
+        [NSDistributedNotificationCenter.defaultCenter postNotificationName:[QS_RUNTIME_CHANNEL stringByAppendingString:@".state"]
+            object:json userInfo:nil deliverImmediately:YES];
+    }
+}
++ (void)startReceiving {
+    if (receiving) return;
+    receiving = YES;
+    [NSDistributedNotificationCenter.defaultCenter addObserver:self selector:@selector(receiveState:)
+        name:[QS_RUNTIME_CHANNEL stringByAppendingString:@".state"] object:nil
+        suspensionBehavior:NSNotificationSuspensionBehaviorDeliverImmediately];
+}
++ (void)requestPublishedState {
+    if (!receiving) return;
+    [NSDistributedNotificationCenter.defaultCenter postNotificationName:[QS_RUNTIME_CHANNEL stringByAppendingString:@".request"]
+        object:nil userInfo:nil deliverImmediately:YES];
+}
++ (void)receiveState:(NSNotification *)notification {
+    // This channel carries display metadata only. It never establishes lock state.
+    if (![notification.object isKindOfClass:NSString.class] || [notification.object length] > 8192) return;
+    NSData *data = [notification.object dataUsingEncoding:NSUTF8StringEncoding];
+    if (data.length > 8192) return;
+    id payload = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+    if (![payload isKindOfClass:NSDictionary.class] || ![payload[@"version"] isEqual:@1] ||
+        ![payload[@"overtime"] isKindOfClass:NSNumber.class]) return;
+    double overtime = [payload[@"overtime"] doubleValue];
+    if (!isfinite(overtime) || overtime < 0 || overtime > 60 || floor(overtime) != overtime) return;
+    receivedSession = QSValidatedSession(payload[@"session"], NSDate.date.timeIntervalSince1970);
+    receivedOvertime = @(overtime);
+}
 + (ScreenSaverDefaults *)defaults {
     ScreenSaverDefaults *defaults = [ScreenSaverDefaults defaultsForModuleWithName:QSModuleIdentifier];
     [defaults synchronize];
     return defaults;
 }
 + (NSDictionary *)readSession {
+    if (receiving) return QSValidatedSession(receivedSession, NSDate.date.timeIntervalSince1970);
     return QSValidatedSession([[self defaults] objectForKey:@"session"], NSDate.date.timeIntervalSince1970);
 }
 + (BOOL)writeSession:(NSDictionary *)session {
     ScreenSaverDefaults *defaults = [self defaults];
     [defaults setObject:session forKey:@"session"];
-    return [defaults synchronize];
+    BOOL saved = [defaults synchronize];
+    if (saved) [self publishState:nil];
+    return saved;
 }
 + (void)clearSession {
     ScreenSaverDefaults *defaults = [self defaults];
     [defaults removeObjectForKey:@"session"];
     [defaults synchronize];
+    [self publishState:nil];
 }
 + (NSInteger)minutesForReason:(NSString *)reason {
     NSNumber *saved = [[self defaults] objectForKey:[@"minutes." stringByAppendingString:reason]];
@@ -85,6 +140,7 @@ NSTimeInterval QSDisplayDeadline(NSDictionary *session, NSInteger overtimeMinute
     [defaults synchronize];
 }
 + (NSInteger)overtimeMinutes {
+    if (receiving) return receivedOvertime ? receivedOvertime.integerValue : 5;
     id value = [[self defaults] objectForKey:@"overtimeMinutes"];
     return value ? MAX(0, MIN([value integerValue], 60)) : 5;
 }
@@ -92,5 +148,6 @@ NSTimeInterval QSDisplayDeadline(NSDictionary *session, NSInteger overtimeMinute
     ScreenSaverDefaults *defaults = [self defaults];
     [defaults setInteger:MAX(0, MIN(minutes, 60)) forKey:@"overtimeMinutes"];
     [defaults synchronize];
+    [self publishState:nil];
 }
 @end

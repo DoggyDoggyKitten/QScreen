@@ -12,6 +12,9 @@ FOUNDATION_EXPORT NSString *QSReturnText(NSDictionary *session, NSTimeInterval n
 FOUNDATION_EXPORT NSTimeInterval QSDisplayDeadline(NSDictionary *session, NSInteger overtimeMinutes, NSTimeInterval now);
 
 @interface QSStateStore : NSObject
++ (void)startPublishing;
++ (void)startReceiving;
++ (void)requestPublishedState;
 + (NSDictionary *)readSession;
 + (BOOL)writeSession:(NSDictionary *)session;
 + (void)clearSession;
