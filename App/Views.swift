@@ -60,7 +60,7 @@ struct MainView: View {
                                 .frame(width: 52, height: 52).clipShape(RoundedRectangle(cornerRadius: 12))
                             VStack(alignment: .leading, spacing: 5) {
                                 Text(QSReasonTitle(reason)).font(.system(size: 14, weight: .semibold))
-                                Text(reason == "offwork" ? "下次见" : "\(model.durations[reason] ?? 15) 分钟")
+                                Text(reason == "offwork" ? "无倒计时" : "\(model.durations[reason] ?? 15) 分钟")
                                     .font(.system(size: 12)).foregroundStyle(.secondary)
                             }
                             Spacer()
@@ -229,7 +229,7 @@ struct QuickPicker: View {
                             Text("\(model.durations[reason] ?? 15) 分钟").font(.system(size: 12)).monospacedDigit()
                         }.menuStyle(.borderlessButton).fixedSize().frame(width: 85)
                     } else {
-                        Text("下次见").font(.system(size: 12)).foregroundStyle(.secondary).padding(.trailing, 8)
+                        Text("无倒计时").font(.system(size: 12)).foregroundStyle(.secondary).padding(.trailing, 8)
                     }
                 }.padding(8).background(Color.white.opacity(0.8)).clipShape(RoundedRectangle(cornerRadius: 13))
             }

@@ -2,7 +2,10 @@
 #import <ScreenSaver/ScreenSaver.h>
 #import <math.h>
 
-NSString * const QSModuleIdentifier = @"com.qscreen.saver";
+#ifndef QS_PREFERENCES_DOMAIN
+#define QS_PREFERENCES_DOMAIN @"com.qscreen.saver"
+#endif
+NSString * const QSModuleIdentifier = QS_PREFERENCES_DOMAIN;
 
 NSArray<NSString *> *QSReasons(void) {
     return @[@"lunch", @"meeting", @"coffee", @"restroom", @"away", @"offwork"];

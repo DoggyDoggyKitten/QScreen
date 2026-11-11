@@ -1,0 +1,13 @@
+QScreen 0.1.0
+
+1. 将 QScreen.app 放到「应用程序」或用户的 Applications 文件夹，再打开。
+2. 在 QScreen 的「设置」中点击「安装」屏保。
+3. 打开系统「墙纸 → 屏幕保护程序」，选择 QScreen。
+4. 回到 QScreen 点击「已选好」，再点击「授权」，在辅助功能中允许 QScreen。
+5. 点击菜单栏图标或按 Control + Option + Q，选择状态并开始离席。
+
+点击右侧分钟数可以调整返回时间。全屏预览不锁屏，按任意键或点击退出。
+
+本包为临时签名的本地开发版本，尚未完成 Developer ID 签名和公证。
+真实锁屏、MacBook 合盖与外接屏兼容性需在目标机器完成验收。
+技术说明与验收步骤见 README.md 和 docs/ACCEPTANCE.md。

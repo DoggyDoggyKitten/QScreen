@@ -2,6 +2,11 @@ import AppKit
 import Carbon
 import SwiftUI
 
+private final class PreviewWindow: NSWindow {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let model = QScreenModel()
@@ -63,6 +68,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             showMainWindow()
         }
         if CommandLine.arguments.contains("--show") { showMainWindow() }
+        if CommandLine.arguments.contains("--setup") {
+            model.settingsVisible = true
+            showMainWindow()
+        }
         if CommandLine.arguments.contains("--smoke-test") {
             showMainWindow()
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
@@ -100,12 +109,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func registerHotkey() {
         var type = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        InstallEventHandler(GetApplicationEventTarget(), { _, _, _ in
+        let installedHandler = InstallEventHandler(GetApplicationEventTarget(), { _, _, _ in
             DispatchQueue.main.async {
                 (NSApp.delegate as? AppDelegate)?.togglePicker()
             }
             return noErr
         }, 1, &type, nil, &handler)
+        guard installedHandler == noErr else { model.hotkeyAvailable = false; return }
         let identifier = EventHotKeyID(signature: 0x51534352, id: 1)
         let result = RegisterEventHotKey(UInt32(kVK_ANSI_Q), UInt32(controlKey | optionKey), identifier, GetApplicationEventTarget(), 0, &hotkey)
         model.hotkeyAvailable = result == noErr
@@ -117,7 +127,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let session = model.sceneSession
         let start = CACurrentMediaTime()
         for screen in NSScreen.screens {
-            let panel = NSWindow(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
+            let panel = PreviewWindow(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
+            panel.isReleasedWhenClosed = false
             panel.level = .floating
             panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
             panel.backgroundColor = .black
@@ -197,6 +208,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { showMainWindow(); return true }
     func applicationWillTerminate(_ notification: Notification) {
         closePreview()
+        if !CommandLine.arguments.contains("--smoke-test") { model.endAway() }
         if let hotkey { UnregisterEventHotKey(hotkey) }
         if let handler { RemoveEventHandler(handler) }
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
