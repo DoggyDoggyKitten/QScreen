@@ -8,16 +8,10 @@ jobs:
   build:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Test state, cross-process storage and screen saver rendering
         run: bash scripts/test.sh
       - name: Build universal app
         run: bash scripts/build.sh
       - name: Verify signatures and architectures
-        run: |
-          codesign --verify --deep --strict build/QScreen.app
-          codesign --verify --strict build/QScreen.saver
-          for arch in arm64 x86_64; do
-            lipo -verify_arch "$arch" build/QScreen.app/Contents/MacOS/QScreen
-            lipo -verify_arch "$arch" build/QScreen.saver/Contents/MacOS/QScreen
-          done
+        run: bash scripts/verify.sh
