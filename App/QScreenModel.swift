@@ -14,6 +14,8 @@ final class QScreenModel: ObservableObject {
     @Published var error: String?
     @Published var overtime = QSStateStore.overtimeMinutes()
     @Published var hotkeyAvailable = true
+    @Published private(set) var language = QSStateStore.language()
+    var languageDidChange: (() -> Void)?
     var showWindow: (() -> Void)?
     var showPreview: (() -> Void)?
     var prepareForSaver: (() -> Void)?
@@ -28,8 +30,20 @@ final class QScreenModel: ObservableObject {
     }
     var ready: Bool { installed && lockPolicy == .immediate && selectedInSystem }
     var duration: Int { durations[selectedReason] ?? QSDefaultMinutes(selectedReason) }
+    func text(_ chinese: String, _ english: String) -> String { language == "en" ? english : chinese }
+    func reasonTitle(_ reason: String) -> String { QSReasonTitleInLanguage(reason, language) }
+    func characterName(_ reason: String) -> String { QSCharacterNameInLanguage(reason, language) }
+    func minutesText(_ minutes: Int) -> String { text("\(minutes) 分钟", "\(minutes) min") }
+    func setLanguage(_ value: String) {
+        guard ["zh", "en"].contains(value) else { return }
+        QSStateStore.setLanguage(value)
+        language = QSStateStore.language()
+        languageDidChange?()
+    }
     var sceneSession: NSDictionary {
-        QSSession(selectedReason, duration, Date().timeIntervalSince1970) as NSDictionary
+        let session = NSMutableDictionary(dictionary: QSSession(selectedReason, duration, Date().timeIntervalSince1970))
+        session["language"] = language
+        return session
     }
 
     init() {
@@ -94,13 +108,13 @@ final class QScreenModel: ObservableObject {
                 self.dismissPopover?()
                 self.settingsVisible = true
                 self.showWindow?()
-                self.error = "请先在系统锁屏设置中，将启动屏保后要求输入密码设为「立即」。"
+                self.error = self.text("请先在系统锁屏设置中，将启动屏保后要求输入密码设为「立即」。", "In System Settings → Lock Screen, set the password requirement after the screen saver begins to Immediately.")
                 return
             }
             let session = QSSession(reason, minutes, Date().timeIntervalSince1970)
             guard QSStateStore.writeSession(session) else {
                 Diagnostics.log("away.save.failed")
-                self.error = "未能保存离席状态，请重试。"
+                self.error = self.text("未能保存离席状态，请重试。", "Could not save your away status. Please try again.")
                 return
             }
             self.activeSession = session as NSDictionary
@@ -119,7 +133,7 @@ final class QScreenModel: ObservableObject {
                         if let failure {
                             Diagnostics.log("saver.launch.failed \(failure.localizedDescription)")
                             self?.endAway()
-                            self?.error = "屏保未能启动：\(failure.localizedDescription)"
+                            self?.error = self?.text("屏保未能启动：\(failure.localizedDescription)", "Could not start the screen saver: \(failure.localizedDescription)")
                             self?.showWindow?()
                         } else {
                             Diagnostics.log("saver.launch.accepted")
@@ -138,7 +152,7 @@ final class QScreenModel: ObservableObject {
 
     func installSaver() {
         guard let source = Bundle.main.url(forResource: "QScreen", withExtension: "saver") else {
-            error = "安装包中缺少屏保模块，请重新构建 QScreen。"
+            error = text("安装包中缺少屏保模块，请重新构建 QScreen。", "The screen saver is missing from this app. Please rebuild QScreen.")
             return
         }
         do {
@@ -154,7 +168,7 @@ final class QScreenModel: ObservableObject {
             }
             refreshReadiness()
         } catch {
-            self.error = "屏保安装失败：\(error.localizedDescription)"
+            self.error = text("屏保安装失败：\(error.localizedDescription)", "Could not install the screen saver: \(error.localizedDescription)")
         }
     }
 
@@ -166,7 +180,7 @@ final class QScreenModel: ObservableObject {
     }
     private func openSettings(_ address: String) {
         guard let url = URL(string: address), NSWorkspace.shared.open(url) else {
-            error = "无法打开系统设置，请手动打开。"
+            error = text("无法打开系统设置，请手动打开。", "Could not open System Settings. Please open it manually.")
             return
         }
     }

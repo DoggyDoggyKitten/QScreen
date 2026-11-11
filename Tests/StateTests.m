@@ -24,9 +24,23 @@ int main(void) {
         check(QSDisplayDeadline(offwork, 5, now) == now + 300, @"offwork releases display after five minutes");
         check(QSDisplayDeadline(meeting, 5, now) == now + 2100, @"display deadline includes overtime");
         check([QSSession(@"meeting", 9999, now)[@"endsAt"] doubleValue] == now + 480 * 60, @"limit duration");
+        check([QSReturnTextInLanguage(meeting, now, @"en") isEqual:@"Back in about 30 minutes"], @"English countdown");
+        check([QSReturnTextInLanguage(meeting, now + 1799, @"en") isEqual:@"Back in about 1 minute"], @"English singular minute");
+        check([QSReturnTextInLanguage(meeting, now + 1800, @"en") isEqual:@"Running a little late"], @"English overtime");
+        check(QSReturnTextInLanguage(offwork, now, @"en").length == 0, @"English offwork has no countdown");
+        check(QSReturnTextInLanguage(QSValidatedSession(nil, now), now, @"en").length == 0, @"English generic away has no ETA");
+        check([QSReasonTitleInLanguage(@"unknown", @"en") isEqual:@"Stepped away"], @"English fallback reason");
+        invalid = [meeting mutableCopy]; invalid[@"language"] = @[@"en"];
+        check([QSValidatedSession(invalid, now)[@"language"] isEqual:@"zh"], @"invalid language falls back safely");
+        invalid[@"language"] = @"en";
+        check([QSValidatedSession(invalid, now)[@"language"] isEqual:@"en"], @"valid session preserves language");
+        check([QSReturnText(QSValidatedSession(invalid, now), now) isEqual:@"Back in about 30 minutes"], @"return text follows session language");
+        check([QSValidatedSession(meeting, now)[@"language"] isEqual:@"zh"], @"legacy session remains valid in Chinese");
         for (NSString *reason in QSReasons()) {
             check(![QSReasonTitle(reason) isEqual:@""], @"all reasons have a label");
             check([QSValidatedSession(QSSession(reason, 15, now), now)[@"reason"] isEqual:reason], @"all presets validate");
+            check(![QSReasonTitleInLanguage(reason, @"en") isEqual:QSReasonTitle(reason)], @"all six reason labels are translated");
+            check(![QSCharacterNameInLanguage(reason, @"en") isEqual:QSCharacterName(reason)], @"all six character names are translated");
         }
         puts("Passed: countdown, expiry, malformed data, sleep continuity, display policy, six presets.");
     }

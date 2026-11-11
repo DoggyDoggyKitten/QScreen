@@ -12,14 +12,38 @@ NSString * const QSModuleIdentifier = QS_PREFERENCES_DOMAIN;
 static BOOL publishing = NO, receiving = NO;
 static NSDictionary *receivedSession;
 static NSNumber *receivedOvertime;
+static NSString *receivedLanguage;
+
+static NSString *normalizedLanguage(id value) {
+    return [value isKindOfClass:NSString.class] && [value isEqual:@"en"] ? @"en" : @"zh";
+}
+static NSDictionary *sessionInLanguage(NSDictionary *session, NSString *language) {
+    NSMutableDictionary *result = [session mutableCopy];
+    result[@"language"] = normalizedLanguage(language);
+    return result;
+}
 
 NSArray<NSString *> *QSReasons(void) {
     return @[@"lunch", @"meeting", @"coffee", @"restroom", @"away", @"offwork"];
 }
 NSString *QSReasonTitle(NSString *reason) {
+    return QSReasonTitleInLanguage(reason, @"zh");
+}
+NSString *QSReasonTitleInLanguage(NSString *reason, NSString *language) {
+    if ([language isEqual:@"en"]) {
+        return @{@"lunch": @"Out for lunch", @"meeting": @"In a meeting", @"coffee": @"Coffee break",
+                 @"restroom": @"Restroom break", @"away": @"Stepped away", @"offwork": @"Off for the day"}[reason] ?: @"Stepped away";
+    }
     return @{@"lunch": @"吃饭中", @"meeting": @"开会中", @"coffee": @"喝杯咖啡", @"restroom": @"去洗手间", @"away": @"暂时离开", @"offwork": @"今天下班啦"}[reason] ?: @"暂时离开";
 }
 NSString *QSCharacterName(NSString *reason) {
+    return QSCharacterNameInLanguage(reason, @"zh");
+}
+NSString *QSCharacterNameInLanguage(NSString *reason, NSString *language) {
+    if ([language isEqual:@"en"]) {
+        return @{@"lunch": @"Lunch Bear", @"meeting": @"Meeting Bunny", @"coffee": @"Coffee Cat",
+                 @"restroom": @"Bubble Duck", @"away": @"Wandering Frog", @"offwork": @"Sleepy Fox"}[reason] ?: @"Wandering Frog";
+    }
     return @{@"lunch": @"饭团熊", @"meeting": @"认真兔", @"coffee": @"咖啡猫", @"restroom": @"泡泡鸭", @"away": @"漫游蛙", @"offwork": @"晚安狐"}[reason] ?: @"漫游蛙";
 }
 NSInteger QSDefaultMinutes(NSString *reason) {
@@ -44,14 +68,20 @@ NSDictionary *QSValidatedSession(id value, NSTimeInterval now) {
     if ([session[@"reason"] isEqual:@"offwork"]) {
         if (end != 0) return fallback;
     } else if (end <= start || end - start > 480 * 60) return fallback;
-    return session;
+    return sessionInLanguage(session, normalizedLanguage(session[@"language"]));
 }
 NSString *QSReturnText(NSDictionary *session, NSTimeInterval now) {
+    return QSReturnTextInLanguage(session, now, normalizedLanguage(session[@"language"]));
+}
+NSString *QSReturnTextInLanguage(NSDictionary *session, NSTimeInterval now, NSString *language) {
     if ([session[@"reason"] isEqual:@"offwork"]) return @"";
     double end = [session[@"endsAt"] doubleValue];
     if (end <= 0) return @"";
-    if (end <= now) return @"还没回来，稍等一下";
-    return [NSString stringWithFormat:@"约 %ld 分钟后回来", (long)MAX(1, (NSInteger)ceil((end - now) / 60))];
+    BOOL english = [language isEqual:@"en"];
+    if (end <= now) return english ? @"Running a little late" : @"还没回来，稍等一下";
+    NSInteger minutes = MAX(1, (NSInteger)ceil((end - now) / 60));
+    if (english) return [NSString stringWithFormat:@"Back in about %ld %@", (long)minutes, minutes == 1 ? @"minute" : @"minutes"];
+    return [NSString stringWithFormat:@"约 %ld 分钟后回来", (long)minutes];
 }
 NSTimeInterval QSDisplayDeadline(NSDictionary *session, NSInteger overtimeMinutes, NSTimeInterval now) {
     double start = [session[@"startedAt"] doubleValue];
@@ -73,7 +103,7 @@ NSTimeInterval QSDisplayDeadline(NSDictionary *session, NSInteger overtimeMinute
 + (void)publishState:(NSNotification *)notification {
     (void)notification;
     if (!publishing) return;
-    NSDictionary *payload = @{@"version": @1, @"session": self.readSession, @"overtime": @(self.overtimeMinutes)};
+    NSDictionary *payload = @{@"version": @1, @"session": self.readSession, @"overtime": @(self.overtimeMinutes), @"language": self.language};
     NSData *data = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
     NSString *json = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
     if (json) {
@@ -105,8 +135,18 @@ NSTimeInterval QSDisplayDeadline(NSDictionary *session, NSInteger overtimeMinute
         ![payload[@"overtime"] isKindOfClass:NSNumber.class]) return;
     double overtime = [payload[@"overtime"] doubleValue];
     if (!isfinite(overtime) || overtime < 0 || overtime > 60 || floor(overtime) != overtime) return;
+    if (payload[@"language"] && (![payload[@"language"] isKindOfClass:NSString.class] ||
+        ![@[@"zh", @"en"] containsObject:payload[@"language"]])) return;
     receivedSession = QSValidatedSession(payload[@"session"], NSDate.date.timeIntervalSince1970);
     receivedOvertime = @(overtime);
+    receivedLanguage = normalizedLanguage(payload[@"language"]);
+    // Keep the last display language in the host's own preferences so generic
+    // screen saver sessions retain it even when the menu app is not running.
+    ScreenSaverDefaults *defaults = [self defaults];
+    if (![[defaults objectForKey:@"language"] isEqual:receivedLanguage]) {
+        [defaults setObject:receivedLanguage forKey:@"language"];
+        [defaults synchronize];
+    }
 }
 + (ScreenSaverDefaults *)defaults {
     ScreenSaverDefaults *defaults = [ScreenSaverDefaults defaultsForModuleWithName:QSModuleIdentifier];
@@ -114,8 +154,17 @@ NSTimeInterval QSDisplayDeadline(NSDictionary *session, NSInteger overtimeMinute
     return defaults;
 }
 + (NSDictionary *)readSession {
-    if (receiving) return QSValidatedSession(receivedSession, NSDate.date.timeIntervalSince1970);
-    return QSValidatedSession([[self defaults] objectForKey:@"session"], NSDate.date.timeIntervalSince1970);
+    id value = receiving ? receivedSession : [[self defaults] objectForKey:@"session"];
+    return sessionInLanguage(QSValidatedSession(value, NSDate.date.timeIntervalSince1970), self.language);
+}
++ (NSString *)language {
+    return normalizedLanguage(receiving && receivedLanguage ? receivedLanguage : [[self defaults] objectForKey:@"language"]);
+}
++ (void)setLanguage:(NSString *)language {
+    ScreenSaverDefaults *defaults = [self defaults];
+    [defaults setObject:normalizedLanguage(language) forKey:@"language"];
+    [defaults synchronize];
+    [self publishState:nil];
 }
 + (BOOL)writeSession:(NSDictionary *)session {
     ScreenSaverDefaults *defaults = [self defaults];

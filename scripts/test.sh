@@ -26,8 +26,8 @@ for role in provider client; do
     -o "build/tests/bridge-$role"
 done
 python3 Tests/BridgeTests.py
-bash scripts/build-saver.sh
+bash scripts/build-saver.sh --test
 xcrun clang -fobjc-arc -Wall -Wextra -Werror -I Shared \
   Tests/RenderTests.m -framework AppKit -framework ScreenSaver \
   -o build/tests/render-tests
-build/tests/render-tests
+build/tests/render-tests build/previews build/tests/QScreen.saver

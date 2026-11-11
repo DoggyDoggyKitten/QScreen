@@ -59,8 +59,8 @@ struct MainView: View {
                             CharacterScene(session: QSSession(reason, 15, Date().timeIntervalSince1970) as NSDictionary, characterOnly: true, animated: false)
                                 .frame(width: 52, height: 52).clipShape(RoundedRectangle(cornerRadius: 12))
                             VStack(alignment: .leading, spacing: 5) {
-                                Text(QSReasonTitle(reason)).font(.system(size: 14, weight: .semibold))
-                                Text(reason == "offwork" ? "无倒计时" : "\(model.durations[reason] ?? 15) 分钟")
+                                Text(model.reasonTitle(reason)).font(.system(size: 14, weight: .semibold)).lineLimit(1)
+                                Text(reason == "offwork" ? model.text("无倒计时", "No timer") : model.minutesText(model.durations[reason] ?? 15))
                                     .font(.system(size: 12)).foregroundStyle(.secondary)
                             }
                             Spacer()
@@ -79,23 +79,23 @@ struct MainView: View {
                 } label: {
                     HStack {
                         Image(systemName: "slider.horizontal.3")
-                        Text("设置")
+                        Text(model.text("设置", "Settings"))
                         Spacer()
                         if !model.ready { Circle().fill(Color.orange.opacity(0.8)).frame(width: 7, height: 7) }
                     }.font(.system(size: 13, weight: .medium)).padding(12)
                 }.buttonStyle(.plain)
-                Text(model.hotkeyAvailable ? "⌃ ⌥ Q  快速离席" : "快捷键已被占用，请使用菜单栏")
+                Text(model.hotkeyAvailable ? model.text("⌃ ⌥ Q  快速离席", "⌃ ⌥ Q  Quick away") : model.text("快捷键已被占用，请使用菜单栏", "Shortcut in use. Use the menu bar."))
                     .font(.system(size: 11)).foregroundStyle(.secondary).padding(.horizontal, 12).padding(.top, 9)
-            }.padding(22).frame(width: 248).background(paper)
+            }.padding(22).frame(width: model.language == "en" ? 276 : 248).background(paper)
             Rectangle().fill(ink.opacity(0.08)).frame(width: 1)
             VStack(spacing: 0) {
                 if model.settingsVisible {
                     SettingsView(model: model)
                 } else {
                     HStack {
-                        Text(QSCharacterName(model.selectedReason)).font(.system(size: 14, weight: .medium))
+                        Text(model.characterName(model.selectedReason)).font(.system(size: 14, weight: .medium))
                         Spacer()
-                        Button { model.showPreview?() } label: { Label("全屏预览", systemImage: "arrow.up.left.and.arrow.down.right") }
+                        Button { model.showPreview?() } label: { Label(model.text("全屏预览", "Full-screen preview"), systemImage: "arrow.up.left.and.arrow.down.right") }
                             .buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(.secondary)
                     }.padding(.bottom, 17)
                     CharacterScene(session: model.sceneSession)
@@ -103,7 +103,7 @@ struct MainView: View {
                         .overlay(RoundedRectangle(cornerRadius: 22).stroke(ink.opacity(0.06), lineWidth: 1))
                     HStack(spacing: 10) {
                         if model.selectedReason != "offwork" {
-                            Text("返回时间").font(.system(size: 13)).foregroundStyle(.secondary)
+                            Text(model.text("返回时间", "Return in")).font(.system(size: 13)).foregroundStyle(.secondary)
                             Spacer()
                             ForEach([5, 15, 30, 60], id: \.self) { minutes in
                                 Button { model.setDuration(minutes) } label: {
@@ -114,20 +114,20 @@ struct MainView: View {
                                 }.buttonStyle(.plain)
                             }
                             Stepper(value: Binding(get: { model.duration }, set: { model.setDuration($0) }), in: 1...480) {
-                                Text("\(model.duration) 分钟").monospacedDigit().font(.system(size: 13)).frame(width: 70)
+                                Text(model.minutesText(model.duration)).monospacedDigit().font(.system(size: 13)).frame(width: 70)
                             }.fixedSize()
                         } else {
-                            Label("展示 5 分钟后允许熄屏", systemImage: "moon.zzz").font(.system(size: 13)).foregroundStyle(.secondary)
+                            Label(model.text("展示 5 分钟后允许熄屏", "Display may sleep after 5 minutes"), systemImage: "moon.zzz").font(.system(size: 13)).foregroundStyle(.secondary)
                             Spacer()
                         }
                     }.frame(height: 48).padding(.top, 12)
                     HStack {
                         if model.activeSession != nil {
-                            Button("结束离席") { model.endAway() }.buttonStyle(.plain).foregroundStyle(.secondary)
+                            Button(model.text("结束离席", "End away")) { model.endAway() }.buttonStyle(.plain).foregroundStyle(.secondary)
                         }
                         Spacer()
                         Button { model.startAway() } label: {
-                            Label(model.starting ? "正在启动…" : "开始离席并锁屏", systemImage: "lock.fill")
+                            Label(model.starting ? model.text("正在启动…", "Starting…") : model.text("开始离席并锁屏", "Start & lock"), systemImage: "lock.fill")
                                 .font(.system(size: 14, weight: .semibold)).padding(.horizontal, 17).padding(.vertical, 13)
                                 .foregroundStyle(.white).background(accent).clipShape(RoundedRectangle(cornerRadius: 12))
                         }.buttonStyle(.plain).keyboardShortcut(.return, modifiers: .command).disabled(model.starting)
@@ -136,7 +136,7 @@ struct MainView: View {
             }.padding(28).frame(maxWidth: .infinity, maxHeight: .infinity).background(Color.white)
         }.foregroundStyle(ink).frame(minWidth: 1000, minHeight: 672)
             .alert("QScreen", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) {
-                Button("好") { model.error = nil }
+                Button(model.text("好", "OK")) { model.error = nil }
             } message: { Text(model.error ?? "") }
     }
 }
@@ -146,46 +146,47 @@ struct SettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 26) {
             HStack {
-                Text("设置").font(.system(size: 24, weight: .semibold))
+                Text(model.text("设置", "Settings")).font(.system(size: 24, weight: .semibold))
                 Spacer()
-                if model.ready { Label("已就绪", systemImage: "checkmark.circle.fill").font(.system(size: 12)).foregroundStyle(accent) }
+                LanguageSwitch(model: model)
+                if model.ready { Label(model.text("已就绪", "Ready"), systemImage: "checkmark.circle.fill").font(.system(size: 12)).foregroundStyle(accent) }
             }
             VStack(spacing: 0) {
-                setupRow("安装屏保", done: model.installed) {
-                    Button(model.installed ? "更新" : "安装") { model.installSaver() }
+                setupRow(model.text("安装屏保", "Install screen saver"), done: model.installed) {
+                    Button(model.installed ? model.text("更新", "Update") : model.text("安装", "Install")) { model.installSaver() }
                 }
                 Divider().padding(.leading, 35)
-                setupRow("在系统中选择 QScreen", done: model.selectedInSystem) {
+                setupRow(model.text("在系统中选择 QScreen", "Select QScreen in System Settings"), done: model.selectedInSystem) {
                     HStack(spacing: 10) {
-                        Button("打开设置") { model.openScreenSaverSettings() }
-                        if !model.selectedInSystem { Button("已选好") { model.confirmSelection() } }
+                        Button(model.text("打开设置", "Open settings")) { model.openScreenSaverSettings() }
+                        if !model.selectedInSystem { Button(model.text("已选好", "I've selected it")) { model.confirmSelection() } }
                     }
                 }
                 Divider().padding(.leading, 35)
-                setupRow("退出屏保时立即要求密码", done: model.lockPolicy == .immediate) {
+                setupRow(model.text("退出屏保时立即要求密码", "Require password immediately"), done: model.lockPolicy == .immediate) {
                     HStack(spacing: 10) {
                         if model.lockPolicy != .immediate {
-                            Button("重新检查") { model.refreshLockPolicy() }
+                            Button(model.text("重新检查", "Recheck")) { model.refreshLockPolicy() }
                         }
-                        Button("打开锁屏设置") { model.openLockSettings() }
+                        Button(model.text("打开锁屏设置", "Lock Screen settings")) { model.openLockSettings() }
                     }
                 }
             }.padding(15).background(paper).clipShape(RoundedRectangle(cornerRadius: 16))
-            Text("墙纸 → Screen Saver… → Custom → QScreen。选中后回到这里点「已选好」。系统锁屏设置中，启动屏保后要求密码须设为「立即」。")
+            Text(model.text("墙纸 → Screen Saver… → Custom → QScreen。选中后回到这里点「已选好」。系统锁屏设置中，启动屏保后要求密码须设为「立即」。", "Wallpaper → Screen Saver… → Custom → QScreen. Then confirm your selection here. In Lock Screen settings, require a password immediately after the screen saver starts."))
                 .font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             VStack(alignment: .leading, spacing: 14) {
-                Text("屏幕展示").font(.system(size: 14, weight: .semibold))
+                Text(model.text("屏幕展示", "Display")).font(.system(size: 14, weight: .semibold))
                 HStack {
-                    Text("倒计时结束后继续亮屏").font(.system(size: 13))
+                    Text(model.text("倒计时结束后继续亮屏", "Keep display on after countdown")).font(.system(size: 13))
                     Spacer()
-                    Picker("倒计时结束后继续亮屏", selection: Binding(get: { model.overtime }, set: { model.setOvertime($0) })) {
-                        Text("立即允许熄屏").tag(0)
-                        Text("5 分钟").tag(5)
-                        Text("15 分钟").tag(15)
-                        Text("30 分钟").tag(30)
-                    }.labelsHidden().frame(width: 145)
+                    Picker(model.text("倒计时结束后继续亮屏", "Keep display on after countdown"), selection: Binding(get: { model.overtime }, set: { model.setOvertime($0) })) {
+                        Text(model.text("立即允许熄屏", "Allow sleep immediately")).tag(0)
+                        Text(model.minutesText(5)).tag(5)
+                        Text(model.minutesText(15)).tag(15)
+                        Text(model.minutesText(30)).tag(30)
+                    }.labelsHidden().frame(width: model.language == "en" ? 185 : 145)
                 }
-                Text("下班状态展示 5 分钟；普通锁屏的「暂时离开」展示 15 分钟。之后由系统决定何时熄屏。")
+                Text(model.text("下班状态展示 5 分钟；普通锁屏的「暂时离开」展示 15 分钟。之后由系统决定何时熄屏。", "Off for the day stays on for 5 minutes; a screen saver with no return time stays on for 15 minutes. The system then controls display sleep."))
                     .font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
@@ -193,7 +194,7 @@ struct SettingsView: View {
                 Text("QScreen " + (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""))
                     .font(.system(size: 11)).foregroundStyle(.tertiary)
                 Spacer()
-                Button("退出 QScreen") { NSApp.terminate(nil) }.buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(.secondary)
+                Button(model.text("退出 QScreen", "Quit QScreen")) { NSApp.terminate(nil) }.buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(.secondary)
             }
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -221,7 +222,7 @@ struct QuickPicker: View {
                                 CharacterScene(session: QSSession(reason, 15, Date().timeIntervalSince1970) as NSDictionary, characterOnly: true, animated: false)
                                     .frame(width: 38, height: 38)
                                     .clipShape(RoundedRectangle(cornerRadius: 10))
-                                Text(QSReasonTitle(reason))
+                                Text(model.reasonTitle(reason))
                                     .font(.system(size: 13, weight: .medium))
                                 Spacer(minLength: 8)
                             }
@@ -229,7 +230,7 @@ struct QuickPicker: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .help("选择并锁屏")
+                        .help(model.text("选择并锁屏", "Select and lock"))
                         .disabled(model.starting)
                         if reason != "offwork" {
                             Menu {
@@ -238,22 +239,22 @@ struct QuickPicker: View {
                                         model.setDuration(value, reason: reason)
                                     } label: {
                                         if model.durations[reason] == value {
-                                            Label("\(value) 分钟", systemImage: "checkmark")
+                                            Label(model.minutesText(value), systemImage: "checkmark")
                                         } else {
-                                            Text("\(value) 分钟")
+                                            Text(model.minutesText(value))
                                         }
                                     }
                                 }
                             } label: {
-                                Text("\(model.durations[reason] ?? 15) 分钟")
+                                Text(model.minutesText(model.durations[reason] ?? 15))
                                     .font(.system(size: 12)).monospacedDigit()
                                     .foregroundStyle(.secondary)
                             }
                             .menuStyle(.borderlessButton)
                             .fixedSize().frame(width: 76, height: 36)
-                            .accessibilityLabel("\(QSReasonTitle(reason))时长")
+                            .accessibilityLabel(model.text("\(model.reasonTitle(reason))时长", "Duration for \(model.reasonTitle(reason))"))
                         } else {
-                            Text("无倒计时").font(.system(size: 12)).foregroundStyle(.tertiary)
+                            Text(model.text("无倒计时", "No timer")).font(.system(size: 12)).foregroundStyle(.tertiary)
                                 .frame(width: 76)
                         }
                     }
@@ -267,20 +268,16 @@ struct QuickPicker: View {
             .padding(8)
             Divider().padding(.horizontal, 17)
             HStack {
-                Button { model.dismissPopover?(); model.showWindow?() } label: {
-                    Label("QScreen", systemImage: "slider.horizontal.3")
+                Button {
+                    if !model.ready { model.settingsVisible = true }
+                    model.dismissPopover?()
+                    model.showWindow?()
+                } label: {
+                    Label(model.ready ? "QScreen" : model.text("完成设置", "Finish setup"), systemImage: "slider.horizontal.3")
                 }
                 .buttonStyle(.plain)
                 Spacer()
-                if !model.ready {
-                    Button("完成设置") {
-                        model.settingsVisible = true
-                        model.dismissPopover?()
-                        model.showWindow?()
-                    }.buttonStyle(.plain)
-                } else {
-                    Text("⌃⌥Q").font(.system(size: 11))
-                }
+                LanguageSwitch(model: model)
             }
             .font(.system(size: 12))
             .foregroundStyle(.secondary)
@@ -290,5 +287,20 @@ struct QuickPicker: View {
         .frame(width: 320)
         .background(Color(nsColor: .windowBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+struct LanguageSwitch: View {
+    @ObservedObject var model: QScreenModel
+
+    var body: some View {
+        Picker("Language / 语言", selection: Binding(get: { model.language }, set: { model.setLanguage($0) })) {
+            Text("中文").tag("zh")
+            Text("English").tag("en")
+        }
+        .labelsHidden()
+        .pickerStyle(.segmented)
+        .controlSize(.small)
+        .frame(width: 126)
     }
 }

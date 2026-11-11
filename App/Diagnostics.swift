@@ -28,6 +28,7 @@ enum Diagnostics {
             "lockPolicy": model.lockPolicy.rawValue,
             "selectionConfirmed": model.selectedInSystem,
             "hasAwaySession": model.activeSession != nil,
+            "language": model.language,
             "screens": NSScreen.screens.count
         ]
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

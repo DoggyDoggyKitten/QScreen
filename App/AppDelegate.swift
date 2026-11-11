@@ -29,12 +29,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         Diagnostics.log("app.started")
         QSStateStore.startPublishing()
+        if let index = CommandLine.arguments.firstIndex(of: "--language"),
+           CommandLine.arguments.indices.contains(index + 1) {
+            model.setLanguage(CommandLine.arguments[index + 1])
+        }
         NSApp.setActivationPolicy(.accessory)
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.image = NSImage(systemSymbolName: "sparkles.rectangle.stack", accessibilityDescription: "QScreen 离席")
+        statusItem.button?.image = NSImage(systemSymbolName: "sparkles.rectangle.stack", accessibilityDescription: "QScreen")
         statusItem.button?.target = self
         statusItem.button?.action = #selector(togglePicker)
-        statusItem.button?.toolTip = "QScreen · ⌃⌥Q"
+        updateStatusText()
+        model.languageDidChange = { [weak self] in self?.updateStatusText() }
         model.showWindow = { [weak self] in self?.showMainWindow() }
         model.showPreview = { [weak self] in self?.openPreview() }
         model.dismissPopover = { [weak self] in self?.closePicker() }
@@ -104,6 +109,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
         }
         Diagnostics.snapshot(model)
+    }
+
+    private func updateStatusText() {
+        statusItem.button?.toolTip = model.text("QScreen 离席 · ⌃⌥Q", "QScreen · Quick away · ⌃⌥Q")
+        statusItem.button?.setAccessibilityLabel(model.text("QScreen 离席", "QScreen quick away"))
     }
 
     func showMainWindow() {
@@ -190,7 +200,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             scene.session = session as! [AnyHashable: Any]
             let container = NSView(frame: scene.frame)
             container.addSubview(scene)
-            let hint = NSTextField(labelWithString: "预览 · 按任意键或点击退出")
+            let hint = NSTextField(labelWithString: model.text("预览 · 按任意键或点击退出", "Preview · Press any key or click to exit"))
             hint.font = .systemFont(ofSize: 12)
             hint.textColor = model.selectedReason == "offwork" ? .white.withAlphaComponent(0.65) : .secondaryLabelColor
             hint.alignment = .center
@@ -262,6 +272,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         model.selectedReason = "offwork"
         let noETA = (model.sceneSession["endsAt"] as? Double) == 0
         model.selectedReason = "lunch"
+        let originalLanguage = model.language
+        var languageSwitchWorks = true
+        for language in ["zh", "en"] {
+            model.setLanguage(language)
+            model.settingsVisible = false
+            RunLoop.main.run(until: Date().addingTimeInterval(0.15))
+            window?.contentView?.layoutSubtreeIfNeeded()
+            captureView(window?.contentView, to: "\(directory)/app-\(language).png")
+            model.settingsVisible = true
+            RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+            captureView(window?.contentView, to: "\(directory)/settings-\(language).png")
+            togglePicker()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+            captureView(pickerPanel?.contentView, to: "\(directory)/picker-\(language).png")
+            closePicker()
+            languageSwitchWorks = languageSwitchWorks && QSStateStore.language() == language && model.sceneSession["language"] as? String == language
+        }
+        model.setLanguage(originalLanguage)
+        model.settingsVisible = false
         let result: [String: Any] = ["window": window?.isVisible == true,
                                     "presetCount": model.reasons.count,
                                     "durationPersistence": persisted,
@@ -272,6 +301,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                                     "pickerBorderless": pickerBorderless,
                                     "pickerEscapeDismissed": pickerEscapeDismissed,
                                     "pickerReopens": pickerReopens,
+                                    "languageSwitchAndPersistence": languageSwitchWorks,
+                                    "language": model.language,
                                     "screens": NSScreen.screens.count,
                                     "screenSizes": NSScreen.screens.map { "\(Int($0.frame.width))×\(Int($0.frame.height))" }]
         if let data = try? JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys]) {

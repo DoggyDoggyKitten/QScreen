@@ -33,8 +33,8 @@
     [QSStateStore requestPublishedState];
     self.scene.session=QSStateStore.readSession;
     os_log_with_type(OS_LOG_DEFAULT,OS_LOG_TYPE_DEFAULT,
-                     "QScreen saver started preview=%{public}d reason=%{public}@ hasETA=%{public}d",
-                     self.isPreview,self.scene.session[@"reason"],[self.scene.session[@"endsAt"] doubleValue]>0);
+                     "QScreen saver started preview=%{public}d reason=%{public}@ hasETA=%{public}d language=%{public}@",
+                     self.isPreview,self.scene.session[@"reason"],[self.scene.session[@"endsAt"] doubleValue]>0,self.scene.session[@"language"]);
     [self refreshDisplayLease];
 }
 - (void)refreshDisplayLease {
@@ -76,8 +76,8 @@
         if (![session isEqual:self.scene.session]) {
             self.scene.session=session;
             os_log_with_type(OS_LOG_DEFAULT,OS_LOG_TYPE_DEFAULT,
-                             "QScreen state updated reason=%{public}@ hasETA=%{public}d",
-                             session[@"reason"],[session[@"endsAt"] doubleValue]>0);
+                             "QScreen state updated reason=%{public}@ hasETA=%{public}d language=%{public}@",
+                             session[@"reason"],[session[@"endsAt"] doubleValue]>0,session[@"language"]);
             [self refreshDisplayLease];
         }
         self.scene.referenceTime=now;

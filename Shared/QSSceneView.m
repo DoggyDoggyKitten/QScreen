@@ -67,6 +67,7 @@ static NSColor *backgroundColor(NSString *reason) {
 - (void)drawRect:(NSRect)dirtyRect {
     (void)dirtyRect;
     NSString *reason = self.session[@"reason"] ?: @"away";
+    NSString *language = self.session[@"language"] ?: @"zh";
     BOOL night = [reason isEqual:@"offwork"];
     NSColor *ink = QSColor(night ? 0xF5EDDF : 0x333C38);
     NSColor *muted = QSColor(night ? 0xC5C7D8 : 0x68746E);
@@ -109,9 +110,9 @@ static NSColor *backgroundColor(NSString *reason) {
     if (!self.characterOnly) {
         // Small continuous drift protects fixed lettering without making it hard to read.
         CGFloat drift = sin(t*.03)*9;
-        text(QSReasonTitle(reason), NSMakeRect(80+drift,548,1040,120), 88, NSFontWeightSemibold, ink);
+        text(QSReasonTitleInLanguage(reason,language), NSMakeRect(80+drift,548,1040,120), 88, NSFontWeightSemibold, ink);
         NSTimeInterval now = self.referenceTime > 0 ? self.referenceTime : NSDate.date.timeIntervalSince1970;
-        text(QSReturnText(self.session,now), NSMakeRect(80+drift,671,1040,65), 39, NSFontWeightMedium, muted);
+        text(QSReturnTextInLanguage(self.session,now,language), NSMakeRect(80+drift,671,1040,65), 39, NSFontWeightMedium, muted);
     }
     [NSGraphicsContext restoreGraphicsState];
 }

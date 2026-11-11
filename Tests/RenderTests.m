@@ -13,7 +13,7 @@ static NSFont *fontFactory(id receiver, SEL selector, NSFontDescriptor *descript
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
         [NSApplication sharedApplication];
-        NSString *bundlePath=[NSFileManager.defaultManager.currentDirectoryPath stringByAppendingPathComponent:@"build/QScreen.saver"];
+        NSString *bundlePath=[NSFileManager.defaultManager.currentDirectoryPath stringByAppendingPathComponent:argc>2 ? @(argv[2]) : @"build/QScreen.saver"];
         NSBundle *bundle=[NSBundle bundleWithPath:bundlePath];
         if (![bundle load]) { NSLog(@"Could not load saver bundle"); return 1; }
         void *handle=dlopen(bundle.executablePath.fileSystemRepresentation,RTLD_NOW | RTLD_LOCAL);
@@ -24,14 +24,19 @@ int main(int argc, const char *argv[]) {
         NSString *output = argc>1 ? @(argv[1]) : @"build/previews";
         [NSFileManager.defaultManager createDirectoryAtPath:output withIntermediateDirectories:YES attributes:nil error:nil];
         NSTimeInterval now=1800000000;
-        for (NSString *reason in reasons()) {
+        for (NSString *language in @[@"zh", @"en"]) {
+          for (NSString *reason in reasons()) {
             QSSceneView *view=[[NSClassFromString(@"QSSceneView") alloc] initWithFrame:NSMakeRect(0,0,1440,960)];
-            view.session=session(reason,minutes(reason),now);
+            NSMutableDictionary *localizedSession=[session(reason,minutes(reason),now) mutableCopy];
+            localizedSession[@"language"]=language;
+            view.session=localizedSession;
             view.referenceTime=now+61; view.animationTime=2;
             NSBitmapImageRep *bitmap=[view bitmapImageRepForCachingDisplayInRect:view.bounds];
             [view cacheDisplayInRect:view.bounds toBitmapImageRep:bitmap];
             NSData *data=[bitmap representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
-            if (![data writeToFile:[output stringByAppendingPathComponent:[reason stringByAppendingString:@".png"]] atomically:YES]) return 1;
+            NSString *filename=[language isEqual:@"zh"] ? [reason stringByAppendingString:@".png"] : [reason stringByAppendingString:@"-en.png"];
+            if (![data writeToFile:[output stringByAppendingPathComponent:filename] atomically:YES]) return 1;
+          }
         }
         Class principal=bundle.principalClass;
         if (![principal isSubclassOfClass:ScreenSaverView.class]) return 1;
@@ -57,6 +62,6 @@ int main(int argc, const char *argv[]) {
         }
         if (failed || failNextFont) return 1;
         puts("Passed: missing rounded font falls back without crashing live rendering.");
-        puts("Passed: rendered all six scenes and loaded native screen saver lifecycle.");
+        puts("Passed: rendered all six scenes in both languages and loaded native screen saver lifecycle.");
     }
 }
