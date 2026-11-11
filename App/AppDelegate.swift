@@ -33,6 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         model.showWindow = { [weak self] in self?.showMainWindow() }
         model.showPreview = { [weak self] in self?.openPreview() }
         model.dismissPopover = { [weak self] in self?.popover.performClose(nil) }
+        model.relaunch = { [weak self] in self?.relaunch() }
         model.lock = { [weak self] in
             self?.closePreview()
             self?.window?.orderOut(nil)
@@ -165,6 +166,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         previews.removeAll()
     }
 
+    private func relaunch() {
+        if let hotkey { UnregisterEventHotKey(hotkey); self.hotkey = nil }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+        configuration.arguments = ["--show", "--setup"]
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { [weak self] _, failure in
+            Task { @MainActor in
+                if let failure {
+                    self?.model.error = "无法重启：\(failure.localizedDescription)"
+                    self?.registerHotkey()
+                } else {
+                    NSApp.terminate(nil)
+                }
+            }
+        }
+    }
+
     private func captureView(_ view: NSView?, to path: String) {
         guard let view,
               let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
@@ -198,7 +216,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                                     "durationPersistence": persisted,
                                     "offworkHasNoETA": noETA,
                                     "saverInstalled": model.installed,
-                                    "accessibilityGranted": model.trusted,
+                                    "lockEventPermission": model.trusted,
                                     "screens": NSScreen.screens.count,
                                     "screenSizes": NSScreen.screens.map { "\(Int($0.frame.width))×\(Int($0.frame.height))" }]
         if let data = try? JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys]) {

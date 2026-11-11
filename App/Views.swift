@@ -163,7 +163,12 @@ struct SettingsView: View {
                 }
                 Divider().padding(.leading, 35)
                 setupRow("允许一键锁屏", done: model.trusted) {
-                    Button(model.trusted ? "已授权" : "授权") { model.requestAccessibility() }.disabled(model.trusted)
+                    HStack(spacing: 10) {
+                        if !model.trusted {
+                            Button("重启检查") { model.relaunch?() }
+                        }
+                        Button(model.trusted ? "已授权" : "授权") { model.requestLockPermission() }.disabled(model.trusted)
+                    }
                 }
             }.padding(15).background(paper).clipShape(RoundedRectangle(cornerRadius: 16))
             Text("墙纸 → Screen Saver… → Custom → QScreen。选中后回到这里点「已选好」。辅助功能权限用于发送系统锁屏快捷键。")

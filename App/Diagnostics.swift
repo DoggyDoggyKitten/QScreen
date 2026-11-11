@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 
 @MainActor
 enum Diagnostics {
@@ -25,7 +26,8 @@ enum Diagnostics {
             "timestamp": ISO8601DateFormatter().string(from: Date()),
             "bundlePath": Bundle.main.bundlePath,
             "installed": model.installed,
-            "accessibility": model.trusted,
+            "postEventPermission": model.trusted,
+            "accessibilityPermission": AXIsProcessTrusted(),
             "selectionConfirmed": model.selectedInSystem,
             "hasAwaySession": model.activeSession != nil,
             "screens": NSScreen.screens.count

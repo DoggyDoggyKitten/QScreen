@@ -1,5 +1,5 @@
 import AppKit
-import ApplicationServices
+import CoreGraphics
 import SwiftUI
 
 @MainActor
@@ -18,6 +18,7 @@ final class QScreenModel: ObservableObject {
     var showPreview: (() -> Void)?
     var lock: (() -> Void)?
     var dismissPopover: (() -> Void)?
+    var relaunch: (() -> Void)?
     private var refreshTimer: Timer?
 
     let reasons = ["lunch", "meeting", "coffee", "restroom", "away", "offwork"]
@@ -43,7 +44,7 @@ final class QScreenModel: ObservableObject {
 
     func refreshReadiness() {
         installed = FileManager.default.fileExists(atPath: saverDestination.appendingPathComponent("Contents/MacOS/QScreen").path)
-        trusted = AXIsProcessTrusted()
+        trusted = CGPreflightPostEventAccess()
     }
 
     func setDuration(_ minutes: Int, reason: String? = nil) {
@@ -60,7 +61,7 @@ final class QScreenModel: ObservableObject {
 
     func startAway() {
         refreshReadiness()
-        Diagnostics.log("away.request installed=\(installed) accessibility=\(trusted) selection=\(selectedInSystem)")
+        Diagnostics.log("away.request installed=\(installed) eventPosting=\(trusted) selection=\(selectedInSystem)")
         guard ready else {
             dismissPopover?()
             settingsVisible = true
@@ -142,9 +143,9 @@ final class QScreenModel: ObservableObject {
     func openScreenSaverSettings() {
         openSettings("x-apple.systempreferences:com.apple.Wallpaper-Settings.extension")
     }
-    func requestAccessibility() {
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        trusted = AXIsProcessTrustedWithOptions(options)
+    func requestLockPermission() {
+        Diagnostics.log("permission.postEvent.requested")
+        trusted = CGRequestPostEventAccess()
         if !trusted {
             openSettings("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
         }
