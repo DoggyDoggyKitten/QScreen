@@ -73,6 +73,20 @@ struct MainView: View {
                             .contentShape(Rectangle())
                     }.buttonStyle(.plain).padding(.bottom, 5)
                 }
+                Button { model.openCustomEditor() } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "square.and.pencil").font(.system(size: 18)).frame(width: 52)
+                        Text(model.text("自定义", "Custom")).font(.system(size: 14, weight: .medium))
+                        Spacer()
+                        if model.selectedReason == "custom" && !model.settingsVisible {
+                            Circle().fill(accent).frame(width: 7, height: 7)
+                        }
+                    }
+                    .padding(.horizontal, 9).frame(height: 42)
+                    .background(model.selectedReason == "custom" && !model.settingsVisible ? Color.white.opacity(0.8) : .clear)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .contentShape(Rectangle())
+                }.buttonStyle(.plain)
                 Spacer(minLength: 18)
                 Button {
                     model.settingsVisible.toggle()
@@ -93,7 +107,20 @@ struct MainView: View {
                     SettingsView(model: model)
                 } else {
                     HStack {
-                        Text(model.characterName(model.selectedReason)).font(.system(size: 14, weight: .medium))
+                        if model.selectedReason == "custom" {
+                            Menu {
+                                ForEach(model.reasons, id: \.self) { reason in
+                                    Button(model.characterName(reason)) { model.setCustomCharacter(reason) }
+                                }
+                            } label: {
+                                Text(model.characterName(model.customCharacter))
+                                    .font(.system(size: 14, weight: .medium))
+                            }
+                            .menuStyle(.borderlessButton).fixedSize()
+                            .accessibilityLabel(model.text("选择角色", "Choose character"))
+                        } else {
+                            Text(model.characterName(model.selectedReason)).font(.system(size: 14, weight: .medium))
+                        }
                         Spacer()
                         Button { model.showPreview?() } label: { Label(model.text("全屏预览", "Full-screen preview"), systemImage: "arrow.up.left.and.arrow.down.right") }
                             .buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(.secondary)
@@ -101,6 +128,15 @@ struct MainView: View {
                     CharacterScene(session: model.sceneSession)
                         .clipShape(RoundedRectangle(cornerRadius: 22))
                         .overlay(RoundedRectangle(cornerRadius: 22).stroke(ink.opacity(0.06), lineWidth: 1))
+                    if model.selectedReason == "custom" {
+                        HStack(spacing: 12) {
+                            Text(model.text("理由", "Reason")).font(.system(size: 13)).foregroundStyle(.secondary)
+                            TextField(model.text("例如：出门遛狗", "e.g. Walking the dog"), text: Binding(get: { model.customReason }, set: { model.setCustomReason($0) }))
+                                .textFieldStyle(.roundedBorder).font(.system(size: 14))
+                                .accessibilityLabel(model.text("自定义离席理由", "Custom away reason"))
+                            Text("\(model.customReason.count)/40").font(.system(size: 11)).monospacedDigit().foregroundStyle(.secondary)
+                        }.padding(.top, 16)
+                    }
                     HStack(spacing: 10) {
                         if model.selectedReason != "offwork" {
                             Text(model.text("返回时间", "Return in")).font(.system(size: 13)).foregroundStyle(.secondary)
@@ -113,9 +149,7 @@ struct MainView: View {
                                         .clipShape(RoundedRectangle(cornerRadius: 8))
                                 }.buttonStyle(.plain)
                             }
-                            Stepper(value: Binding(get: { model.duration }, set: { model.setDuration($0) }), in: 1...480) {
-                                Text(model.minutesText(model.duration)).monospacedDigit().font(.system(size: 13)).frame(width: 70)
-                            }.fixedSize()
+                            DurationInput(model: model, reason: model.selectedReason).id(model.selectedReason)
                         } else {
                             Label(model.text("展示 5 分钟后允许熄屏", "Display may sleep after 5 minutes"), systemImage: "moon.zzz").font(.system(size: 13)).foregroundStyle(.secondary)
                             Spacer()
@@ -130,7 +164,7 @@ struct MainView: View {
                             Label(model.starting ? model.text("正在启动…", "Starting…") : model.text("开始离席并锁屏", "Start & lock"), systemImage: "lock.fill")
                                 .font(.system(size: 14, weight: .semibold)).padding(.horizontal, 17).padding(.vertical, 13)
                                 .foregroundStyle(.white).background(accent).clipShape(RoundedRectangle(cornerRadius: 12))
-                        }.buttonStyle(.plain).keyboardShortcut(.return, modifiers: .command).disabled(model.starting)
+                        }.buttonStyle(.plain).keyboardShortcut(.return, modifiers: .command).disabled(!model.canStart).opacity(model.canStart ? 1 : 0.45)
                     }.padding(.top, 15)
                 }
             }.padding(28).frame(maxWidth: .infinity, maxHeight: .infinity).background(Color.white)
@@ -264,6 +298,22 @@ struct QuickPicker: View {
                     .clipShape(RoundedRectangle(cornerRadius: 11))
                     .onHover { inside in hoveredReason = inside ? reason : nil }
                 }
+                Button { model.openCustomEditor() } label: {
+                    HStack(spacing: 12) {
+                        CharacterScene(session: model.customSceneSession, characterOnly: true, animated: false)
+                            .frame(width: 38, height: 38).clipShape(RoundedRectangle(cornerRadius: 10))
+                        Text(model.text("自定义…", "Custom…")).font(.system(size: 13, weight: .medium))
+                        Spacer()
+                        Image(systemName: "square.and.pencil").foregroundStyle(.secondary).padding(.trailing, 10)
+                    }
+                    .padding(.horizontal, 9).frame(height: 52)
+                    .background(hoveredReason == "custom" ? Color.primary.opacity(0.055) : .clear)
+                    .clipShape(RoundedRectangle(cornerRadius: 11))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(model.starting)
+                .onHover { inside in hoveredReason = inside ? "custom" : nil }
             }
             .padding(8)
             Divider().padding(.horizontal, 17)
@@ -302,5 +352,25 @@ struct LanguageSwitch: View {
         .pickerStyle(.segmented)
         .controlSize(.small)
         .frame(width: 126)
+    }
+}
+
+struct DurationInput: View {
+    @ObservedObject var model: QScreenModel
+    let reason: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            TextField(model.text("分钟", "Minutes"), value: Binding(get: { model.durations[reason] ?? QSDefaultMinutes(reason) }, set: { model.setDuration($0, reason: reason) }), format: .number.grouping(.never))
+                .textFieldStyle(.roundedBorder)
+                .multilineTextAlignment(.trailing)
+                .monospacedDigit().font(.system(size: 13))
+                .frame(width: 48)
+                .help(model.text("1–480 分钟", "1–480 minutes"))
+                .accessibilityIdentifier("duration-input")
+            Text(model.text("分钟", "min")).font(.system(size: 13)).foregroundStyle(.secondary)
+            Stepper(model.text("分钟", "Minutes"), value: Binding(get: { model.durations[reason] ?? QSDefaultMinutes(reason) }, set: { model.setDuration($0, reason: reason) }), in: 1...480)
+                .labelsHidden().fixedSize()
+        }.fixedSize()
     }
 }

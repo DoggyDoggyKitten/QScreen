@@ -202,7 +202,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             container.addSubview(scene)
             let hint = NSTextField(labelWithString: model.text("预览 · 按任意键或点击退出", "Preview · Press any key or click to exit"))
             hint.font = .systemFont(ofSize: 12)
-            hint.textColor = model.selectedReason == "offwork" ? .white.withAlphaComponent(0.65) : .secondaryLabelColor
+            hint.textColor = QSSceneCharacter(session as! [AnyHashable: Any]) == "offwork" ? .white.withAlphaComponent(0.65) : .secondaryLabelColor
             hint.alignment = .center
             hint.frame = NSRect(x: 20, y: 20, width: scene.frame.width - 40, height: 24)
             hint.autoresizingMask = [.width, .maxYMargin]
@@ -233,6 +233,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         view.cacheDisplay(in: view.bounds, to: bitmap)
         let data = bitmap.representation(using: .png, properties: [:])
         try? data?.write(to: URL(fileURLWithPath: path))
+    }
+
+    private func enterText(_ value: String, placeholder: String) -> Bool {
+        func findField(_ view: NSView) -> NSTextField? {
+            if let field = view as? NSTextField, field.placeholderString == placeholder { return field }
+            for child in view.subviews {
+                if let field = findField(child) { return field }
+            }
+            return nil
+        }
+        guard let view = window?.contentView, let field = findField(view) else { return false }
+        window?.makeKeyAndOrderFront(nil)
+        guard window?.makeFirstResponder(field) == true, let editor = field.currentEditor() as? NSTextView else { return false }
+        editor.selectAll(nil)
+        editor.insertText(value, replacementRange: editor.selectedRange())
+        window?.makeFirstResponder(nil)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        return true
     }
 
     private func runSmokeTest() {
@@ -291,6 +309,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         model.setLanguage(originalLanguage)
         model.settingsVisible = false
+        let savedCustomReason = model.customReason, savedCharacter = model.customCharacter
+        let savedCustomMinutes = model.durations["custom"] ?? 15
+        model.openCustomEditor()
+        model.setLanguage("en")
+        model.setCustomReason("")
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        let emptyCustomBlocked = !model.canStart
+        let typedReason = enterText("Walking the dog", placeholder: "e.g. Walking the dog")
+        let typedMinutes = enterText("25", placeholder: "Minutes")
+        model.setCustomCharacter("coffee")
+        let customInputWorks = typedReason && typedMinutes && model.customReason == "Walking the dog" && model.duration == 25 && model.canStart
+        let customSession = model.sceneSession
+        let customSyncReady = QSValidatedSession(customSession, Date().timeIntervalSince1970)["reason"] as? String == "custom" &&
+            QSSceneTitle(customSession as! [AnyHashable: Any], "en") == "Walking the dog" &&
+            QSSceneCharacter(customSession as! [AnyHashable: Any]) == "coffee"
+        let customDraftSaved = QSStateStore.customReason() == "Walking the dog" && QSStateStore.customCharacter() == "coffee" &&
+            QSStateStore.minutes(forReason: "custom") == 25
+        for language in ["en", "zh"] {
+            model.setLanguage(language)
+            RunLoop.main.run(until: Date().addingTimeInterval(0.15))
+            captureView(window?.contentView, to: "\(directory)/custom-\(language).png")
+        }
+        model.setCustomReason(savedCustomReason)
+        model.setCustomCharacter(savedCharacter)
+        model.setDuration(savedCustomMinutes, reason: "custom")
+        model.setLanguage(originalLanguage)
+        model.selectedReason = "lunch"
         let result: [String: Any] = ["window": window?.isVisible == true,
                                     "presetCount": model.reasons.count,
                                     "durationPersistence": persisted,
@@ -303,6 +348,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                                     "pickerReopens": pickerReopens,
                                     "languageSwitchAndPersistence": languageSwitchWorks,
                                     "language": model.language,
+                                    "emptyCustomBlocked": emptyCustomBlocked,
+                                    "customTypedInput": customInputWorks,
+                                    "customSessionValidated": customSyncReady,
+                                    "customDraftPersistence": customDraftSaved,
                                     "screens": NSScreen.screens.count,
                                     "screenSizes": NSScreen.screens.map { "\(Int($0.frame.width))×\(Int($0.frame.height))" }]
         if let data = try? JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys]) {

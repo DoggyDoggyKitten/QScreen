@@ -15,6 +15,8 @@ final class QScreenModel: ObservableObject {
     @Published var overtime = QSStateStore.overtimeMinutes()
     @Published var hotkeyAvailable = true
     @Published private(set) var language = QSStateStore.language()
+    @Published private(set) var customReason = QSStateStore.customReason()
+    @Published private(set) var customCharacter = QSStateStore.customCharacter()
     var languageDidChange: (() -> Void)?
     var showWindow: (() -> Void)?
     var showPreview: (() -> Void)?
@@ -30,6 +32,8 @@ final class QScreenModel: ObservableObject {
     }
     var ready: Bool { installed && lockPolicy == .immediate && selectedInSystem }
     var duration: Int { durations[selectedReason] ?? QSDefaultMinutes(selectedReason) }
+    var customReasonValid: Bool { !QSNormalizedCustomReason(customReason).isEmpty }
+    var canStart: Bool { !starting && (selectedReason != "custom" || customReasonValid) }
     func text(_ chinese: String, _ english: String) -> String { language == "en" ? english : chinese }
     func reasonTitle(_ reason: String) -> String { QSReasonTitleInLanguage(reason, language) }
     func characterName(_ reason: String) -> String { QSCharacterNameInLanguage(reason, language) }
@@ -41,13 +45,38 @@ final class QScreenModel: ObservableObject {
         languageDidChange?()
     }
     var sceneSession: NSDictionary {
-        let session = NSMutableDictionary(dictionary: QSSession(selectedReason, duration, Date().timeIntervalSince1970))
+        makeSession(reason: selectedReason, minutes: duration)
+    }
+    var customSceneSession: NSDictionary {
+        makeSession(reason: "custom", minutes: durations["custom"] ?? 15)
+    }
+    private func makeSession(reason: String, minutes: Int) -> NSDictionary {
+        let value = reason == "custom" ? QSCustomSession(customReason, customCharacter, minutes, Date().timeIntervalSince1970)
+                                       : QSSession(reason, minutes, Date().timeIntervalSince1970)
+        let session = NSMutableDictionary(dictionary: value)
         session["language"] = language
         return session
     }
 
+    func setCustomReason(_ value: String) {
+        customReason = String(value.prefix(40))
+        QSStateStore.setCustomReason(customReason)
+    }
+    func setCustomCharacter(_ value: String) {
+        guard reasons.contains(value) else { return }
+        customCharacter = value
+        QSStateStore.setCustomCharacter(value)
+    }
+    func openCustomEditor() {
+        selectedReason = "custom"
+        settingsVisible = false
+        dismissPopover?()
+        showWindow?()
+    }
+
     init() {
         for reason in reasons { durations[reason] = QSStateStore.minutes(forReason: reason) }
+        durations["custom"] = QSStateStore.minutes(forReason: "custom")
         refreshReadiness()
         refreshLockPolicy()
         let stored = QSStateStore.readSession() as NSDictionary
@@ -80,12 +109,15 @@ final class QScreenModel: ObservableObject {
 
     func chooseAndStart(_ reason: String) {
         guard !starting else { return }
+        if reason == "custom" { openCustomEditor(); return }
         selectedReason = reason
         startAway()
     }
 
     func startAway(reason overrideReason: String? = nil, minutes overrideMinutes: Int? = nil) {
         guard !starting else { return }
+        // Commit a typed minute value before reading it, including Command-Return.
+        if let window = NSApp.keyWindow, !window.makeFirstResponder(nil) { return }
         refreshReadiness()
         Diagnostics.log("away.request installed=\(installed) selection=\(selectedInSystem)")
         guard installed && selectedInSystem else {
@@ -95,6 +127,12 @@ final class QScreenModel: ObservableObject {
             return
         }
         let reason = overrideReason ?? selectedReason, minutes = overrideMinutes ?? duration
+        let customTitle = QSNormalizedCustomReason(customReason), character = customCharacter
+        guard reason != "custom" || !customTitle.isEmpty else {
+            openCustomEditor()
+            error = text("请填写离席理由。", "Enter an away reason.")
+            return
+        }
         starting = true
         Task { [weak self] in
             guard let self else { return }
@@ -111,7 +149,8 @@ final class QScreenModel: ObservableObject {
                 self.error = self.text("请先在系统锁屏设置中，将启动屏保后要求输入密码设为「立即」。", "In System Settings → Lock Screen, set the password requirement after the screen saver begins to Immediately.")
                 return
             }
-            let session = QSSession(reason, minutes, Date().timeIntervalSince1970)
+            let session = reason == "custom" ? QSCustomSession(customTitle, character, minutes, Date().timeIntervalSince1970)
+                                             : QSSession(reason, minutes, Date().timeIntervalSince1970)
             guard QSStateStore.writeSession(session) else {
                 Diagnostics.log("away.save.failed")
                 self.error = self.text("未能保存离席状态，请重试。", "Could not save your away status. Please try again.")
