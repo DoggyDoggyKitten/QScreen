@@ -209,47 +209,86 @@ struct SettingsView: View {
 
 struct QuickPicker: View {
     @ObservedObject var model: QScreenModel
+    @State private var hoveredReason: String?
+
     var body: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Text("离席").font(.system(size: 18, weight: .semibold, design: .rounded))
-                Spacer()
-                Text("⌃ ⌥ Q").font(.system(size: 11)).foregroundStyle(.secondary)
-            }.padding(.bottom, 3)
-            ForEach(model.reasons, id: \.self) { reason in
-                HStack(spacing: 0) {
-                    Button { model.chooseAndStart(reason) } label: {
-                        HStack(spacing: 12) {
-                            CharacterScene(session: QSSession(reason, 15, Date().timeIntervalSince1970) as NSDictionary, characterOnly: true, animated: false)
-                                .frame(width: 48, height: 48).clipShape(RoundedRectangle(cornerRadius: 11))
-                            Text(QSReasonTitle(reason)).font(.system(size: 13, weight: .medium))
-                            Spacer()
-                        }.contentShape(Rectangle())
-                    }.buttonStyle(.plain).help("选择并锁屏").disabled(model.starting)
-                    if reason != "offwork" {
-                        Menu {
-                            ForEach([5, 10, 15, 30, 45, 60, 90, 120], id: \.self) { value in
-                                Button("\(value) 分钟") { model.setDuration(value, reason: reason) }
+        VStack(spacing: 0) {
+            VStack(spacing: 2) {
+                ForEach(model.reasons, id: \.self) { reason in
+                    HStack(spacing: 0) {
+                        Button { model.chooseAndStart(reason) } label: {
+                            HStack(spacing: 12) {
+                                CharacterScene(session: QSSession(reason, 15, Date().timeIntervalSince1970) as NSDictionary, characterOnly: true, animated: false)
+                                    .frame(width: 38, height: 38)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                Text(QSReasonTitle(reason))
+                                    .font(.system(size: 13, weight: .medium))
+                                Spacer(minLength: 8)
                             }
-                        } label: {
-                            Text("\(model.durations[reason] ?? 15) 分钟").font(.system(size: 12)).monospacedDigit()
-                        }.menuStyle(.borderlessButton).fixedSize().frame(width: 85)
-                    } else {
-                        Text("无倒计时").font(.system(size: 12)).foregroundStyle(.secondary).padding(.trailing, 8)
+                            .frame(maxHeight: .infinity)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("选择并锁屏")
+                        .disabled(model.starting)
+                        if reason != "offwork" {
+                            Menu {
+                                ForEach([5, 10, 15, 30, 45, 60, 90, 120], id: \.self) { value in
+                                    Button {
+                                        model.setDuration(value, reason: reason)
+                                    } label: {
+                                        if model.durations[reason] == value {
+                                            Label("\(value) 分钟", systemImage: "checkmark")
+                                        } else {
+                                            Text("\(value) 分钟")
+                                        }
+                                    }
+                                }
+                            } label: {
+                                Text("\(model.durations[reason] ?? 15) 分钟")
+                                    .font(.system(size: 12)).monospacedDigit()
+                                    .foregroundStyle(.secondary)
+                            }
+                            .menuStyle(.borderlessButton)
+                            .fixedSize().frame(width: 76, height: 36)
+                            .accessibilityLabel("\(QSReasonTitle(reason))时长")
+                        } else {
+                            Text("无倒计时").font(.system(size: 12)).foregroundStyle(.tertiary)
+                                .frame(width: 76)
+                        }
                     }
-                }.padding(8).background(Color.white.opacity(0.8)).clipShape(RoundedRectangle(cornerRadius: 13))
+                    .padding(.horizontal, 9)
+                    .frame(height: 52)
+                    .background(hoveredReason == reason ? Color.primary.opacity(0.055) : .clear)
+                    .clipShape(RoundedRectangle(cornerRadius: 11))
+                    .onHover { inside in hoveredReason = inside ? reason : nil }
+                }
             }
-            Divider().padding(.top, 2)
+            .padding(8)
+            Divider().padding(.horizontal, 17)
             HStack {
-                Button { model.dismissPopover?(); model.showWindow?() } label: { Label("打开 QScreen", systemImage: "macwindow") }
+                Button { model.dismissPopover?(); model.showWindow?() } label: {
+                    Label("QScreen", systemImage: "slider.horizontal.3")
+                }
+                .buttonStyle(.plain)
                 Spacer()
                 if !model.ready {
-                    Button("完成设置") { model.settingsVisible = true; model.dismissPopover?(); model.showWindow?() }
+                    Button("完成设置") {
+                        model.settingsVisible = true
+                        model.dismissPopover?()
+                        model.showWindow?()
+                    }.buttonStyle(.plain)
                 } else {
-                    Image(systemName: "lock.fill").foregroundStyle(accent)
+                    Text("⌃⌥Q").font(.system(size: 11))
                 }
-            }.font(.system(size: 11)).buttonStyle(.plain).padding(.top, 3)
-        }.padding(18).frame(width: 356).background(paper).foregroundStyle(ink)
+            }
+            .font(.system(size: 12))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 18)
+            .frame(height: 43)
+        }
+        .frame(width: 320)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
-

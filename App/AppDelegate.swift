@@ -7,11 +7,17 @@ private final class PreviewWindow: NSWindow {
     override var canBecomeMain: Bool { false }
 }
 
+private final class PickerPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let model = QScreenModel()
     private var statusItem: NSStatusItem!
-    private var popover = NSPopover()
+    private var pickerPanel: PickerPanel?
+    private var pickerClickMonitor: Any?
     private var window: NSWindow?
     private var previews: [NSWindow] = []
     private var previewTimers: [Timer] = []
@@ -29,11 +35,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         statusItem.button?.target = self
         statusItem.button?.action = #selector(togglePicker)
         statusItem.button?.toolTip = "QScreen · ⌃⌥Q"
-        popover.behavior = .transient
-        popover.contentViewController = NSHostingController(rootView: QuickPicker(model: model))
         model.showWindow = { [weak self] in self?.showMainWindow() }
         model.showPreview = { [weak self] in self?.openPreview() }
-        model.dismissPopover = { [weak self] in self?.popover.performClose(nil) }
+        model.dismissPopover = { [weak self] in self?.closePicker() }
         model.prepareForSaver = { [weak self] in
             self?.closePreview()
             self?.window?.orderOut(nil)
@@ -50,9 +54,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         })
         // Clicking this app after returning is also an unambiguous reset, even if
         // a macOS version does not deliver the compatibility unlock notification.
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .keyDown]) { [weak self] event in
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { [weak self] event in
             let consumed = MainActor.assumeIsolated {
                 guard let self else { return false }
+                if self.pickerPanel?.isVisible == true {
+                    if event.type == .keyDown && event.keyCode == UInt16(kVK_Escape) {
+                        self.closePicker()
+                        return true
+                    }
+                    if (event.type == .leftMouseDown || event.type == .rightMouseDown) && event.window !== self.pickerPanel &&
+                        event.window !== self.statusItem.button?.window {
+                        self.closePicker()
+                    }
+                }
                 if !self.previews.isEmpty {
                     self.closePreview()
                     return true
@@ -64,6 +78,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 return false
             }
             return consumed ? nil : event
+        }
+        pickerClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+            MainActor.assumeIsolated { self?.closePicker() }
         }
         if !UserDefaults.standard.bool(forKey: "hasLaunched") {
             UserDefaults.standard.set(true, forKey: "hasLaunched")
@@ -109,11 +126,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc func togglePicker() {
-        if popover.isShown { popover.performClose(nil); return }
-        guard let button = statusItem.button else { return }
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        popover.contentViewController?.view.window?.makeKey()
+        if pickerPanel?.isVisible == true { closePicker(); return }
+        guard let button = statusItem.button, let buttonWindow = button.window else { return }
+        if pickerPanel == nil {
+            let hosting = NSHostingController(rootView: QuickPicker(model: model))
+            let panel = PickerPanel(contentRect: .zero, styleMask: .borderless, backing: .buffered, defer: false)
+            panel.isReleasedWhenClosed = false
+            panel.isOpaque = false
+            panel.backgroundColor = .clear
+            panel.hasShadow = true
+            panel.level = .popUpMenu
+            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            panel.contentViewController = hosting
+            panel.setContentSize(hosting.view.fittingSize)
+            pickerPanel = panel
+        }
+        guard let panel = pickerPanel else { return }
+        let anchor = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
+        let visible = buttonWindow.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? anchor
+        let x = min(max(anchor.midX - panel.frame.width / 2, visible.minX + 8), visible.maxX - panel.frame.width - 8)
+        let y = max(visible.minY + 8, anchor.minY - panel.frame.height - 6)
+        panel.setFrameOrigin(NSPoint(x: x, y: y))
         NSApp.activate(ignoringOtherApps: true)
+        panel.makeKeyAndOrderFront(nil)
+        statusItem.button?.highlight(true)
+    }
+
+    private func closePicker() {
+        pickerPanel?.orderOut(nil)
+        statusItem.button?.highlight(false)
+    }
+
+    func applicationDidResignActive(_ notification: Notification) {
+        closePicker()
     }
 
     private func registerHotkey() {
@@ -132,7 +177,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func openPreview() {
         closePreview()
-        popover.performClose(nil)
+        closePicker()
         let session = model.sceneSession
         let start = CACurrentMediaTime()
         for screen in NSScreen.screens {
@@ -191,8 +236,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         model.settingsVisible = false
         togglePicker()
         RunLoop.main.run(until: Date().addingTimeInterval(0.15))
-        captureView(popover.contentViewController?.view, to: "\(directory)/picker.png")
-        popover.performClose(nil)
+        captureView(pickerPanel?.contentView, to: "\(directory)/picker.png")
+        let pickerFitsScreen = pickerPanel.map { panel in panel.screen?.visibleFrame.contains(panel.frame) == true } ?? false
+        let pickerBorderless = pickerPanel?.styleMask == .borderless
+        pickerPanel?.appearance = NSAppearance(named: .darkAqua)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        captureView(pickerPanel?.contentView, to: "\(directory)/picker-dark.png")
+        pickerPanel?.appearance = nil
+        if let panel = pickerPanel,
+           let escape = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [],
+                                        timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: panel.windowNumber,
+                                        context: nil, characters: "\u{1B}", charactersIgnoringModifiers: "\u{1B}",
+                                        isARepeat: false, keyCode: UInt16(kVK_Escape)) {
+            NSApp.sendEvent(escape)
+        }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        let pickerEscapeDismissed = pickerPanel?.isVisible == false
+        togglePicker()
+        let pickerReopens = pickerPanel?.isVisible == true
+        closePicker()
         let saved = model.durations["meeting"] ?? 60
         model.setDuration(45, reason: "meeting")
         let persisted = QSStateStore.minutes(forReason: "meeting") == 45
@@ -206,6 +268,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                                     "offworkHasNoETA": noETA,
                                     "saverInstalled": model.installed,
                                     "lockPolicy": model.lockPolicy.rawValue,
+                                    "pickerFitsScreen": pickerFitsScreen,
+                                    "pickerBorderless": pickerBorderless,
+                                    "pickerEscapeDismissed": pickerEscapeDismissed,
+                                    "pickerReopens": pickerReopens,
                                     "screens": NSScreen.screens.count,
                                     "screenSizes": NSScreen.screens.map { "\(Int($0.frame.width))×\(Int($0.frame.height))" }]
         if let data = try? JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys]) {
@@ -223,10 +289,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { showMainWindow(); return true }
     func applicationWillTerminate(_ notification: Notification) {
         closePreview()
+        closePicker()
         if !CommandLine.arguments.contains("--smoke-test") { model.endAway() }
         if let hotkey { UnregisterEventHotKey(hotkey) }
         if let handler { RemoveEventHandler(handler) }
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+        if let pickerClickMonitor { NSEvent.removeMonitor(pickerClickMonitor) }
         for observer in lifecycleObservers {
             DistributedNotificationCenter.default().removeObserver(observer)
             NSWorkspace.shared.notificationCenter.removeObserver(observer)
