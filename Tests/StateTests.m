@@ -36,6 +36,21 @@ int main(void) {
         check([QSValidatedSession(invalid, now)[@"language"] isEqual:@"en"], @"valid session preserves language");
         check([QSReturnText(QSValidatedSession(invalid, now), now) isEqual:@"Back in about 30 minutes"], @"return text follows session language");
         check([QSValidatedSession(meeting, now)[@"language"] isEqual:@"zh"], @"legacy session remains valid in Chinese");
+        NSDictionary *custom = QSCustomSession(@"  Walking\n the dog  ", @"coffee", 25, now);
+        check([QSValidatedSession(custom, now)[@"reason"] isEqual:@"custom"], @"custom session validates");
+        check([QSSceneTitle(custom, @"en") isEqual:@"Walking the dog"], @"custom title is normalized");
+        check([QSSceneTitle(custom, @"zh") isEqual:@"Walking the dog"], @"language switch preserves user text");
+        check([QSSceneCharacter(custom) isEqual:@"coffee"], @"custom character is independent of reason");
+        check([custom[@"endsAt"] doubleValue] == now + 1500, @"custom typed duration sets real deadline");
+        check([QSNormalizedCustomReason(@"👨‍👩‍👧‍👦 🐕") isEqual:@"👨‍👩‍👧‍👦 🐕"], @"emoji graphemes preserved");
+        check(QSNormalizedCustomReason([@"长" stringByPaddingToLength:100 withString:@"长" startingAtIndex:0]).length == 40, @"custom title length bounded");
+        check(!QSValidatedSession(QSCustomSession(@" \n ", @"away", 15, now), now)[@"id"], @"reject empty custom title");
+        invalid = [custom mutableCopy]; invalid[@"title"] = @42;
+        check(!QSValidatedSession(invalid, now)[@"id"], @"reject non-string custom title");
+        invalid = [custom mutableCopy]; invalid[@"character"] = @"unknown";
+        check(!QSValidatedSession(invalid, now)[@"id"], @"reject unknown custom character");
+        NSDictionary *customFox = QSCustomSession(@"Be right back", @"offwork", 25, now);
+        check(QSReturnText(customFox, now).length > 0 && QSDisplayDeadline(customFox, 5, now) == now + 1800, @"custom fox retains its own ETA and display deadline");
         for (NSString *reason in QSReasons()) {
             check(![QSReasonTitle(reason) isEqual:@""], @"all reasons have a label");
             check([QSValidatedSession(QSSession(reason, 15, now), now)[@"reason"] isEqual:reason], @"all presets validate");

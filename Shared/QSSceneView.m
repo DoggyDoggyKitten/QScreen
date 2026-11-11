@@ -40,6 +40,27 @@ static void text(NSString *string, NSRect rect, CGFloat size, NSFontWeight weigh
     if (font) attributes[NSFontAttributeName] = font;
     [string drawInRect:rect withAttributes:attributes];
 }
+static void customTitle(NSString *string, NSRect rect, NSColor *color) {
+    NSMutableParagraphStyle *style = NSMutableParagraphStyle.new;
+    style.alignment = NSTextAlignmentCenter;
+    style.lineBreakMode = NSLineBreakByWordWrapping;
+    style.lineBreakStrategy = NSLineBreakStrategyPushOut;
+    for (CGFloat size = 88; size >= 44; size -= 2) {
+        NSFont *base = [NSFont systemFontOfSize:size weight:NSFontWeightSemibold];
+        NSFontDescriptor *descriptor = [base.fontDescriptor fontDescriptorWithDesign:NSFontDescriptorSystemDesignRounded];
+        NSFont *font = descriptor ? [NSFont fontWithDescriptor:descriptor size:size] : nil;
+        NSDictionary *attributes = @{NSFontAttributeName:font ?: base, NSForegroundColorAttributeName:color,
+                                     NSParagraphStyleAttributeName:style};
+        NSRect bounds = [string boundingRectWithSize:NSMakeSize(rect.size.width, CGFLOAT_MAX)
+            options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingUsesFontLeading attributes:attributes];
+        if ((bounds.size.height <= rect.size.height && bounds.size.height <= (font ?: base).boundingRectForFont.size.height * 2.1) || size == 44) {
+            CGFloat height = MIN(rect.size.height, ceil(bounds.size.height));
+            NSRect centered = NSMakeRect(rect.origin.x, rect.origin.y + (rect.size.height-height)/2, rect.size.width, height);
+            [string drawWithRect:centered options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingUsesFontLeading attributes:attributes];
+            return;
+        }
+    }
+}
 static NSColor *bodyColor(NSString *reason) {
     return QSColor([@{@"lunch":@0xBD8865, @"meeting":@0xEBDDC9, @"coffee":@0x919DA9,
                     @"restroom":@0xF2CA67, @"away":@0x9EBF93, @"offwork":@0xDF9673}[reason] unsignedIntValue]);
@@ -67,11 +88,13 @@ static NSColor *backgroundColor(NSString *reason) {
 - (void)drawRect:(NSRect)dirtyRect {
     (void)dirtyRect;
     NSString *reason = self.session[@"reason"] ?: @"away";
+    NSString *characterReason = QSSceneCharacter(self.session);
     NSString *language = self.session[@"language"] ?: @"zh";
-    BOOL night = [reason isEqual:@"offwork"];
+    BOOL custom = [reason isEqual:@"custom"];
+    BOOL night = [characterReason isEqual:@"offwork"];
     NSColor *ink = QSColor(night ? 0xF5EDDF : 0x333C38);
     NSColor *muted = QSColor(night ? 0xC5C7D8 : 0x68746E);
-    [backgroundColor(reason) setFill]; NSRectFill(self.bounds);
+    [backgroundColor(characterReason) setFill]; NSRectFill(self.bounds);
     CGFloat canvasW = self.characterOnly ? 500 : 1200, canvasH = self.characterOnly ? 470 : 800;
     CGFloat scale = MIN(self.bounds.size.width / canvasW, self.bounds.size.height / canvasH);
     if (scale <= 0) return;
@@ -97,22 +120,23 @@ static NSColor *backgroundColor(NSString *reason) {
         }
         if (night) {
             ellipse(905,110,70,70,QSColor(0xF6D99B));
-            ellipse(928,98,66,66,backgroundColor(reason));
+            ellipse(928,98,66,66,backgroundColor(characterReason));
         }
     }
     ellipse(cx-132,cy+157,264,23,[ink colorWithAlphaComponent:.08]);
     [NSGraphicsContext saveGraphicsState];
     NSAffineTransform *character = NSAffineTransform.transform;
     [character translateXBy:cx yBy:cy+bob]; [character concat];
-    [self drawCharacter:reason time:t];
+    [self drawCharacter:characterReason time:t];
     [NSGraphicsContext restoreGraphicsState];
 
     if (!self.characterOnly) {
         // Small continuous drift protects fixed lettering without making it hard to read.
         CGFloat drift = sin(t*.03)*9;
-        text(QSReasonTitleInLanguage(reason,language), NSMakeRect(80+drift,548,1040,120), 88, NSFontWeightSemibold, ink);
+        if (custom) customTitle(QSSceneTitle(self.session,language), NSMakeRect(80+drift,530,1040,160), ink);
+        else text(QSSceneTitle(self.session,language), NSMakeRect(80+drift,548,1040,120), 88, NSFontWeightSemibold, ink);
         NSTimeInterval now = self.referenceTime > 0 ? self.referenceTime : NSDate.date.timeIntervalSince1970;
-        text(QSReturnTextInLanguage(self.session,now,language), NSMakeRect(80+drift,671,1040,65), 39, NSFontWeightMedium, muted);
+        text(QSReturnTextInLanguage(self.session,now,language), NSMakeRect(80+drift,custom ? 708 : 671,1040,65), 39, NSFontWeightMedium, muted);
     }
     [NSGraphicsContext restoreGraphicsState];
 }

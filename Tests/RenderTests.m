@@ -19,8 +19,9 @@ int main(int argc, const char *argv[]) {
         void *handle=dlopen(bundle.executablePath.fileSystemRepresentation,RTLD_NOW | RTLD_LOCAL);
         NSArray *(*reasons)(void)=dlsym(handle,"QSReasons");
         NSDictionary *(*session)(NSString *,NSInteger,NSTimeInterval)=dlsym(handle,"QSSession");
+        NSDictionary *(*customSession)(NSString *,NSString *,NSInteger,NSTimeInterval)=dlsym(handle,"QSCustomSession");
         NSInteger (*minutes)(NSString *)=dlsym(handle,"QSDefaultMinutes");
-        if (!handle || !reasons || !session || !minutes) return 1;
+        if (!handle || !reasons || !session || !customSession || !minutes) return 1;
         NSString *output = argc>1 ? @(argv[1]) : @"build/previews";
         [NSFileManager.defaultManager createDirectoryAtPath:output withIntermediateDirectories:YES attributes:nil error:nil];
         NSTimeInterval now=1800000000;
@@ -37,6 +38,18 @@ int main(int argc, const char *argv[]) {
             NSString *filename=[language isEqual:@"zh"] ? [reason stringByAppendingString:@".png"] : [reason stringByAppendingString:@"-en.png"];
             if (![data writeToFile:[output stringByAppendingPathComponent:filename] atomically:YES]) return 1;
           }
+        }
+        NSArray *titles=@[@"Walking the dog", @"Collaborating with the team next door", @"正在参加跨部门项目讨论预计稍后返回工位请稍等我马上回来谢谢大家的耐心等候", @"👨‍👩‍👧‍👦 Walking the dog 🐕"];
+        for (NSUInteger index=0; index<titles.count; index++) {
+            QSSceneView *view=[[NSClassFromString(@"QSSceneView") alloc] initWithFrame:NSMakeRect(0,0,1440,960)];
+            NSMutableDictionary *value=[customSession(titles[index], index==3 ? @"offwork" : @"away", 25, now) mutableCopy];
+            value[@"language"]=@"en";
+            view.session=value; view.referenceTime=now; view.animationTime=2;
+            NSBitmapImageRep *bitmap=[view bitmapImageRepForCachingDisplayInRect:view.bounds];
+            [view cacheDisplayInRect:view.bounds toBitmapImageRep:bitmap];
+            NSData *data=[bitmap representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+            NSString *filename=[NSString stringWithFormat:@"custom-%lu.png",(unsigned long)index];
+            if (![data writeToFile:[output stringByAppendingPathComponent:filename] atomically:YES]) return 1;
         }
         Class principal=bundle.principalClass;
         if (![principal isSubclassOfClass:ScreenSaverView.class]) return 1;

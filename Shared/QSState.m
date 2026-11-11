@@ -32,9 +32,9 @@ NSString *QSReasonTitle(NSString *reason) {
 NSString *QSReasonTitleInLanguage(NSString *reason, NSString *language) {
     if ([language isEqual:@"en"]) {
         return @{@"lunch": @"Out for lunch", @"meeting": @"In a meeting", @"coffee": @"Coffee break",
-                 @"restroom": @"Restroom break", @"away": @"Stepped away", @"offwork": @"Off for the day"}[reason] ?: @"Stepped away";
+                 @"restroom": @"Restroom break", @"away": @"Stepped away", @"offwork": @"Off for the day", @"custom": @"Custom"}[reason] ?: @"Stepped away";
     }
-    return @{@"lunch": @"吃饭中", @"meeting": @"开会中", @"coffee": @"喝杯咖啡", @"restroom": @"去洗手间", @"away": @"暂时离开", @"offwork": @"今天下班啦"}[reason] ?: @"暂时离开";
+    return @{@"lunch": @"吃饭中", @"meeting": @"开会中", @"coffee": @"喝杯咖啡", @"restroom": @"去洗手间", @"away": @"暂时离开", @"offwork": @"今天下班啦", @"custom": @"自定义"}[reason] ?: @"暂时离开";
 }
 NSString *QSCharacterName(NSString *reason) {
     return QSCharacterNameInLanguage(reason, @"zh");
@@ -47,7 +47,43 @@ NSString *QSCharacterNameInLanguage(NSString *reason, NSString *language) {
     return @{@"lunch": @"饭团熊", @"meeting": @"认真兔", @"coffee": @"咖啡猫", @"restroom": @"泡泡鸭", @"away": @"漫游蛙", @"offwork": @"晚安狐"}[reason] ?: @"漫游蛙";
 }
 NSInteger QSDefaultMinutes(NSString *reason) {
-    return [@{@"lunch": @30, @"meeting": @60, @"coffee": @10, @"restroom": @5, @"away": @15, @"offwork": @0}[reason] integerValue];
+    return [@{@"lunch": @30, @"meeting": @60, @"coffee": @10, @"restroom": @5, @"away": @15, @"offwork": @0, @"custom": @15}[reason] integerValue];
+}
+NSString *QSNormalizedCustomReason(id value) {
+    if (![value isKindOfClass:NSString.class]) return @"";
+    NSArray *words = [value componentsSeparatedByCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    NSString *singleLine = [[words filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"length > 0"]] componentsJoinedByString:@" "];
+    // Avoid carrying invisible control characters into the public status board.
+    NSMutableCharacterSet *controls = [[NSCharacterSet characterSetWithRange:NSMakeRange(0, 32)] mutableCopy];
+    [controls addCharactersInRange:NSMakeRange(127, 1)];
+    singleLine = [[singleLine componentsSeparatedByCharactersInSet:controls] componentsJoinedByString:@""];
+    NSMutableString *result = NSMutableString.new;
+    __block NSUInteger count = 0;
+    [singleLine enumerateSubstringsInRange:NSMakeRange(0, singleLine.length) options:NSStringEnumerationByComposedCharacterSequences
+        usingBlock:^(NSString *substring, NSRange range, NSRange enclosingRange, BOOL *stop) {
+            (void)range; (void)enclosingRange;
+            if (++count > 40 || result.length + substring.length > 256) { *stop = YES; return; }
+            [result appendString:substring];
+        }];
+    return [result stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+}
+NSDictionary *QSCustomSession(NSString *title, NSString *character, NSInteger minutes, NSTimeInterval now) {
+    NSMutableDictionary *session = [QSSession(@"away", minutes, now) mutableCopy];
+    session[@"reason"] = @"custom";
+    session[@"title"] = QSNormalizedCustomReason(title);
+    session[@"character"] = [QSReasons() containsObject:character] ? character : @"away";
+    return session;
+}
+NSString *QSSceneTitle(NSDictionary *session, NSString *language) {
+    if ([session[@"reason"] isEqual:@"custom"]) {
+        NSString *title = QSNormalizedCustomReason(session[@"title"]);
+        return title.length ? title : ([language isEqual:@"en"] ? @"Custom reason" : @"自定义理由");
+    }
+    return QSReasonTitleInLanguage(session[@"reason"], language);
+}
+NSString *QSSceneCharacter(NSDictionary *session) {
+    id character = [session[@"reason"] isEqual:@"custom"] ? session[@"character"] : session[@"reason"];
+    return [QSReasons() containsObject:character] ? character : @"away";
 }
 NSDictionary *QSSession(NSString *reason, NSInteger minutes, NSTimeInterval now) {
     if (![QSReasons() containsObject:reason]) reason = @"away";
@@ -60,7 +96,8 @@ NSDictionary *QSValidatedSession(id value, NSTimeInterval now) {
     if (![value isKindOfClass:NSDictionary.class]) return fallback;
     NSDictionary *session = value;
     if (![session[@"version"] isKindOfClass:NSNumber.class] || [session[@"version"] integerValue] != 1 ||
-        ![session[@"reason"] isKindOfClass:NSString.class] || ![QSReasons() containsObject:session[@"reason"]] ||
+        ![session[@"reason"] isKindOfClass:NSString.class] ||
+        (![QSReasons() containsObject:session[@"reason"]] && ![session[@"reason"] isEqual:@"custom"]) ||
         ![session[@"startedAt"] isKindOfClass:NSNumber.class] || ![session[@"endsAt"] isKindOfClass:NSNumber.class] ||
         ![session[@"id"] isKindOfClass:NSString.class]) return fallback;
     double start = [session[@"startedAt"] doubleValue], end = [session[@"endsAt"] doubleValue];
@@ -68,7 +105,13 @@ NSDictionary *QSValidatedSession(id value, NSTimeInterval now) {
     if ([session[@"reason"] isEqual:@"offwork"]) {
         if (end != 0) return fallback;
     } else if (end <= start || end - start > 480 * 60) return fallback;
-    return sessionInLanguage(session, normalizedLanguage(session[@"language"]));
+    NSMutableDictionary *validated = [sessionInLanguage(session, normalizedLanguage(session[@"language"])) mutableCopy];
+    if ([session[@"reason"] isEqual:@"custom"]) {
+        NSString *title = QSNormalizedCustomReason(session[@"title"]);
+        if (!title.length || ![session[@"character"] isKindOfClass:NSString.class] || ![QSReasons() containsObject:session[@"character"]]) return fallback;
+        validated[@"title"] = title;
+    }
+    return validated;
 }
 NSString *QSReturnText(NSDictionary *session, NSTimeInterval now) {
     return QSReturnTextInLanguage(session, now, normalizedLanguage(session[@"language"]));
@@ -165,6 +208,23 @@ NSTimeInterval QSDisplayDeadline(NSDictionary *session, NSInteger overtimeMinute
     [defaults setObject:normalizedLanguage(language) forKey:@"language"];
     [defaults synchronize];
     [self publishState:nil];
+}
++ (NSString *)customReason {
+    return QSNormalizedCustomReason([[self defaults] objectForKey:@"customReason"]);
+}
++ (void)setCustomReason:(NSString *)reason {
+    ScreenSaverDefaults *defaults = [self defaults];
+    [defaults setObject:QSNormalizedCustomReason(reason) forKey:@"customReason"];
+    [defaults synchronize];
+}
++ (NSString *)customCharacter {
+    id value = [[self defaults] objectForKey:@"customCharacter"];
+    return [value isKindOfClass:NSString.class] && [QSReasons() containsObject:value] ? value : @"away";
+}
++ (void)setCustomCharacter:(NSString *)character {
+    ScreenSaverDefaults *defaults = [self defaults];
+    [defaults setObject:[QSReasons() containsObject:character] ? character : @"away" forKey:@"customCharacter"];
+    [defaults synchronize];
 }
 + (BOOL)writeSession:(NSDictionary *)session {
     ScreenSaverDefaults *defaults = [self defaults];

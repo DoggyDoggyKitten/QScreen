@@ -14,6 +14,12 @@ int main(int argc, const char *argv[]) {
             [QSStateStore startPublishing];
             id chinese = [center addObserverForName:@"com.qscreen.bridge.tests.chinese" object:nil queue:NSOperationQueue.mainQueue
                 usingBlock:^(NSNotification *note) { (void)note; [QSStateStore setLanguage:@"zh"]; }];
+            id custom = [center addObserverForName:@"com.qscreen.bridge.tests.custom" object:nil queue:NSOperationQueue.mainQueue
+                usingBlock:^(NSNotification *note) {
+                    (void)note;
+                    [QSStateStore setLanguage:@"en"];
+                    [QSStateStore writeSession:QSCustomSession(@"Walking the dog", @"coffee", 25, NSDate.date.timeIntervalSince1970)];
+                }];
             id clear = [center addObserverForName:@"com.qscreen.bridge.tests.clear" object:nil queue:NSOperationQueue.mainQueue
                 usingBlock:^(NSNotification *note) { (void)note; [QSStateStore clearSession]; }];
             id done = [center addObserverForName:@"com.qscreen.bridge.tests.done" object:nil queue:NSOperationQueue.mainQueue
@@ -23,6 +29,7 @@ int main(int argc, const char *argv[]) {
                 [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
             [center removeObserver:clear]; [center removeObserver:done];
             [center removeObserver:chinese];
+            [center removeObserver:custom];
             [QSStateStore clearSession];
             return finished ? 0 : 1;
         }
@@ -32,7 +39,7 @@ int main(int argc, const char *argv[]) {
             [QSStateStore writeSession:QSSession(@"offwork", 0, NSDate.date.timeIntervalSince1970)];
             [QSStateStore setLanguage:@"zh"];
             [QSStateStore startReceiving];
-            BOOL meeting = NO, switched = NO, cleared = NO;
+            BOOL meeting = NO, switched = NO, customized = NO, cleared = NO;
             NSString *sessionID;
             NSTimeInterval lastRequest = 0;
             while (deadline.timeIntervalSinceNow > 0) {
@@ -50,14 +57,20 @@ int main(int argc, const char *argv[]) {
                            [session[@"language"] isEqual:@"zh"] &&
                            [QSReturnTextInLanguage(session, now, QSStateStore.language) isEqual:@"约 5 分钟后回来"]) {
                     switched = YES;
+                    [center postNotificationName:@"com.qscreen.bridge.tests.custom" object:nil userInfo:nil deliverImmediately:YES];
+                } else if (switched && !customized && [session[@"reason"] isEqual:@"custom"] &&
+                           [QSSceneTitle(session, QSStateStore.language) isEqual:@"Walking the dog"] &&
+                           [QSSceneCharacter(session) isEqual:@"coffee"] &&
+                           [QSReturnText(session, now) isEqual:@"Back in about 25 minutes"]) {
+                    customized = YES;
                     [center postNotificationName:@"com.qscreen.bridge.tests.clear" object:nil userInfo:nil deliverImmediately:YES];
-                } else if (switched && !session[@"id"] && [session[@"reason"] isEqual:@"away"] &&
+                } else if (customized && !session[@"id"] && !session[@"title"] && [session[@"reason"] isEqual:@"away"] &&
                            [session[@"endsAt"] doubleValue] == 0) { cleared = YES; break; }
             }
             [QSStateStore clearSession];
             [center postNotificationName:@"com.qscreen.bridge.tests.done" object:nil userInfo:nil deliverImmediately:YES];
-            if (!meeting || !switched || !cleared) { NSLog(@"Bridge failed: meeting=%d switched=%d cleared=%d", meeting, switched, cleared); return 1; }
-            puts("Passed: isolated domains receive English status, live Chinese switch without restarting ETA, and reset.");
+            if (!meeting || !switched || !customized || !cleared) { NSLog(@"Bridge failed: meeting=%d switched=%d custom=%d cleared=%d", meeting, switched, customized, cleared); return 1; }
+            puts("Passed: isolated domains receive bilingual status, custom title/character/25-minute ETA, and reset.");
             return 0;
         }
         return 1;

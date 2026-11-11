@@ -6,6 +6,9 @@ int main(int argc, const char *argv[]) {
         NSString *mode=@(argv[1]);
         if ([mode isEqual:@"write"]) {
             [QSStateStore setLanguage:@"en"];
+            [QSStateStore setCustomReason:@"Walking the dog"];
+            [QSStateStore setCustomCharacter:@"coffee"];
+            [QSStateStore setMinutes:25 forReason:@"custom"];
             [QSStateStore setMinutes:45 forReason:@"meeting"];
             return [QSStateStore writeSession:QSSession(@"coffee",10,NSDate.date.timeIntervalSince1970)] ? 0 : 1;
         }
@@ -13,6 +16,8 @@ int main(int argc, const char *argv[]) {
             NSDictionary *session=QSStateStore.readSession;
             if (![session[@"reason"] isEqual:@"coffee"] || [QSStateStore minutesForReason:@"meeting"]!=45) return 1;
             if (![QSStateStore.language isEqual:@"en"] || ![session[@"language"] isEqual:@"en"]) return 1;
+            if (![QSStateStore.customReason isEqual:@"Walking the dog"] || ![QSStateStore.customCharacter isEqual:@"coffee"] ||
+                [QSStateStore minutesForReason:@"custom"] != 25) return 1;
             if (![QSReturnText(session,NSDate.date.timeIntervalSince1970) isEqual:@"Back in about 10 minutes"]) return 1;
             puts("Passed: status, deadline, duration and language persist across separate processes.");
             return 0;
