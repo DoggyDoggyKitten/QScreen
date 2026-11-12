@@ -19,6 +19,8 @@ for arch in arm64 x86_64; do
 done
 lipo -create build/obj/arm64/QScreen build/obj/x86_64/QScreen -output "$output/MacOS/QScreen"
 cp App/Info.plist "$output/Info.plist"
+cp LICENSE "$output/Resources/LICENSE"
+cp docs/THIRD_PARTY_NOTICES.md "$output/Resources/THIRD_PARTY_NOTICES.md"
 if [ ! -f App/Resources/AppIcon.icns ]; then bash scripts/make-icon.sh; fi
 cp App/Resources/AppIcon.icns "$output/Resources/AppIcon.icns"
 # Older builds bundled screenshots; illustrations are now drawn by the app.

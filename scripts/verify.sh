@@ -12,4 +12,8 @@ for binary in build/QScreen.app/Contents/MacOS/QScreen build/QScreen.saver/Conte
     esac
   done
 done
-printf '%s\n' 'Verified app and saver signatures, arm64 and x86_64 architectures.'
+for bundle in build/QScreen.app build/QScreen.saver build/QScreen.app/Contents/Resources/QScreen.saver; do
+  cmp LICENSE "$bundle/Contents/Resources/LICENSE"
+  cmp docs/THIRD_PARTY_NOTICES.md "$bundle/Contents/Resources/THIRD_PARTY_NOTICES.md"
+done
+printf '%s\n' 'Verified app and saver signatures, arm64 and x86_64 architectures, licenses and notices.'

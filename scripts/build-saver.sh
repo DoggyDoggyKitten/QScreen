@@ -15,5 +15,7 @@ xcrun clang -fobjc-arc -Wall -Wextra -Werror -mmacosx-version-min=13.0 \
   -framework AppKit -framework ScreenSaver -framework IOKit -framework QuartzCore \
   -o "$output/MacOS/QScreen"
 cp ScreenSaver/Info.plist "$output/Info.plist"
+cp LICENSE "$output/Resources/LICENSE"
+cp docs/THIRD_PARTY_NOTICES.md "$output/Resources/THIRD_PARTY_NOTICES.md"
 codesign --force --sign - --timestamp=none "$bundle"
 printf '%s\n' "Built $bundle"
