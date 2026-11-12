@@ -37,3 +37,21 @@ Create a polished wide landscape approximately 2:1 illustration of a simple offi
 Only visible words are the two original status lines from the supplied screen capture. No added headings, captions, slogans, panel numbers, labels, watermarks or logos. Do not redraw or reinterpret the duck into a different character. The output should clearly show a real screen saver on an external monitor connected to a MacBook, ready to place beneath a short usage diagram in a visual README.
 ```
 
+
+## README wordmark
+
+`docs/images/QScreenWordmark.png` is the user-approved transparent QScreen wordmark, generated with the built-in imagegen tool on 2026-11-11. The README displays it at 360 pixels wide as its accessible level-one heading.
+
+### Wordmark prompt
+
+```text
+Use case: logo-brand.
+Asset type: transparent PNG wordmark replacing a plain GitHub README heading.
+Create ONE finished cute typographic wordmark, exact spelling and case: "QScreen". Nothing else written anywhere. Horizontal composition around 3:1, tightly framed around the lettering with a modest transparent margin, designed to remain crisp and readable at approximately 360px wide.
+
+Style: charming rounded custom display lettering for a cozy macOS office screen saver app. Soft, plump but clearly legible letterforms, gentle hand-drawn picture-book character, polished and restrained. Warm sage green letters, buttery yellow accents, a fine warm cream edge that lets the mark remain legible on both white and dark GitHub backgrounds. Rounded Q with a clear tail; distinct uppercase Q and uppercase S, followed by lowercase c r e e n. Main text must read exactly QScreen, not extra letters or a subtitle.
+
+A tiny adorable golden-yellow baby duck peeks over the upper-left side of the Q, nestling against it with one very short rounded wing. Simple dot eyes, small orange beak, blush cheeks, compact natural proportions, matching a soft flat office-animal comic. The duck must be small enough that the wordmark remains the main subject. Two tiny understated bubble/sparkle details are okay. No stretched arms, no human hands, no badge, no rectangular plate, no giant mascot, no shadow box.
+
+Flat illustrative finish with only subtle soft shading. Transparent alpha background, not white and not a drawn checkerboard. No slogan, caption, installation copy, macOS logo, Apple logo, monitor or extra objects. Deliver only this single ready-to-use wordmark.
+```

@@ -1,4 +1,4 @@
-# QScreen
+<h1><img src="docs/images/QScreenWordmark.png" width="360" alt="QScreen"></h1>
 
 [![Build](https://img.shields.io/github/actions/workflow/status/DoggyDoggyKitten/QScreen/macos.yml?branch=main&label=build)](https://github.com/DoggyDoggyKitten/QScreen/actions/workflows/macos.yml)
 [![Preview version](https://img.shields.io/github/v/release/DoggyDoggyKitten/QScreen?include_prereleases&label=preview&color=B48B58)](https://github.com/DoggyDoggyKitten/QScreen/releases)
