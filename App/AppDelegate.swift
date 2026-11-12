@@ -42,6 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         model.languageDidChange = { [weak self] in self?.updateStatusText() }
         model.showWindow = { [weak self] in self?.showMainWindow() }
         model.showPreview = { [weak self] in self?.openPreview() }
+        model.showQuickPicker = { [weak self] in self?.openPicker() }
         model.dismissPopover = { [weak self] in self?.closePicker() }
         model.prepareForSaver = { [weak self] in
             self?.closePreview()
@@ -142,6 +143,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc func togglePicker() {
         if pickerPanel?.isVisible == true { closePicker(); return }
+        openPicker()
+    }
+
+    private func openPicker() {
         guard let button = statusItem.button, let buttonWindow = button.window else { return }
         if pickerPanel == nil {
             let hosting = NSHostingController(rootView: QuickPicker(model: model))
@@ -407,11 +412,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         model.beginSetup(resume: true)
         let progressRetained = model.setupStep == .password
         model.setSetupStep(.finish)
-        model.finishSetup()
+        model.finishSetup(openQuickPicker: true)
         let deadline = Date().addingTimeInterval(7)
         while model.finishingSetup && Date() < deadline { try? await Task.sleep(nanoseconds: 100_000_000) }
         let completed = defaults.bool(forKey: "onboardingCompleted")
         let completionSafe = model.ready ? completed && !model.setupVisible : !completed && model.setupVisible
+        let finishOpensPickerSafely = model.ready ? pickerPanel?.isVisible == true : pickerPanel?.isVisible != true
+        if model.ready { model.showQuickPicker?() }
+        let finishKeepsPickerOpen = !model.ready || pickerPanel?.isVisible == true
+        if pickerPanel?.isVisible == true { captureView(pickerPanel?.contentView, to: "\(directory)/finish-picker.png") }
+        closePicker()
+        let selection = model.selectedInSystem
+        defaults.set(false, forKey: "onboardingCompleted")
+        model.selectedInSystem = false
+        model.beginSetup()
+        model.setSetupStep(.finish)
+        model.finishSetup(openQuickPicker: true)
+        let blockedDeadline = Date().addingTimeInterval(7)
+        while model.finishingSetup && Date() < blockedDeadline { try? await Task.sleep(nanoseconds: 100_000_000) }
+        let incompleteSetupKeepsPickerClosed = pickerPanel?.isVisible != true && model.setupVisible && !defaults.bool(forKey: "onboardingCompleted")
+        model.selectedInSystem = selection
         var illustrations = 0
         for focus in SetupGuideFocus.allCases {
             let view = SetupIllustrationView(frame: NSRect(origin: .zero, size: SetupIllustrationView.artboard))
@@ -423,7 +443,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let result: [String: Any] = ["screenshots": screenshots, "illustrations": illustrations,
                                     "illustrationSize": "680×328",
                                     "pendingSetupResumes": pendingResumes, "progressRetained": progressRetained,
-                                    "completionSafe": completionSafe, "lockPolicy": model.lockPolicy.rawValue]
+                                    "completionSafe": completionSafe, "finishOpensPickerSafely": finishOpensPickerSafely,
+                                    "finishKeepsPickerOpen": finishKeepsPickerOpen, "incompleteSetupKeepsPickerClosed": incompleteSetupKeepsPickerClosed,
+                                    "lockPolicy": model.lockPolicy.rawValue]
         if let data = try? JSONSerialization.data(withJSONObject: result, options: [.sortedKeys, .prettyPrinted]) {
             try? data.write(to: URL(fileURLWithPath: "\(directory)/results.json"))
         }

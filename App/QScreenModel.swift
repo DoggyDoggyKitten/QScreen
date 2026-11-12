@@ -24,6 +24,7 @@ final class QScreenModel: ObservableObject {
     var languageDidChange: (() -> Void)?
     var showWindow: (() -> Void)?
     var showPreview: (() -> Void)?
+    var showQuickPicker: (() -> Void)?
     var prepareForSaver: (() -> Void)?
     var dismissPopover: (() -> Void)?
     private var refreshTimer: Timer?
@@ -69,7 +70,7 @@ final class QScreenModel: ObservableObject {
         setupVisible = false
         settingsVisible = true
     }
-    func finishSetup() {
+    func finishSetup(openQuickPicker: Bool = false) {
         guard !finishingSetup else { return }
         finishingSetup = true
         Task { [weak self] in
@@ -86,6 +87,7 @@ final class QScreenModel: ObservableObject {
             UserDefaults.standard.set(true, forKey: "onboardingCompleted")
             self.setupVisible = false
             self.settingsVisible = false
+            if openQuickPicker { self.showQuickPicker?() }
         }
     }
     var duration: Int { durations[selectedReason] ?? QSDefaultMinutes(selectedReason) }

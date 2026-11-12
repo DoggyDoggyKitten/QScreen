@@ -22,7 +22,7 @@ struct SetupView: View {
         case .wallpaper: return model.text("打开屏保设置", "Open screen saver settings")
         case .select: return model.text("选中 QScreen", "Choose QScreen")
         case .password: return model.text("立即要求密码", "Require a password immediately")
-        case .finish: return model.text("设置完成", "You're ready")
+        case .finish: return model.text("从菜单栏快速锁屏", "Lock from the menu bar")
         }
     }
 
@@ -126,26 +126,25 @@ struct SetupView: View {
                 policyStatus.font(.system(size: 11))
             }
         case .finish:
-            VStack(spacing: 24) {
-                CharacterScene(session: QSSession("lunch", 15, Date().timeIntervalSince1970) as NSDictionary, characterOnly: true)
-                    .frame(width: 190, height: 170).clipShape(RoundedRectangle(cornerRadius: 26))
-                VStack(alignment: .leading, spacing: 15) {
-                    readiness(model.text("屏保已安装", "Screen saver installed"), done: model.installed)
-                    readiness(model.text("已确认选中 QScreen", "QScreen selection confirmed"), done: model.selectedInSystem)
-                    readiness(model.text("退出屏保立即要求密码", "Password required immediately"), done: model.lockPolicy == .immediate)
-                }
-                if model.ready {
-                    Button { model.showPreview?() } label: {
-                        Label(model.text("先看看全屏预览", "Try a full-screen preview"), systemImage: "arrow.up.left.and.arrow.down.right")
-                    }.buttonStyle(.plain).font(.system(size: 13)).foregroundStyle(setupAccent)
-                } else {
-                    Button(model.text("继续完成设置", "Review remaining setup")) {
-                        model.setSetupStep(SetupFlow.firstIncomplete(installed: model.installed, selected: model.selectedInSystem, policy: model.lockPolicy))
-                    }.buttonStyle(.plain).font(.system(size: 13)).foregroundStyle(setupAccent)
-                }
-                Text("⌃⌥Q  " + model.text("打开快速离席菜单", "opens the quick away menu"))
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
-            }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            VStack(alignment: .leading, spacing: 24) {
+                MenuBarTutorial(model: model).frame(maxWidth: .infinity)
+                HStack {
+                    if model.ready {
+                        Button { model.showPreview?() } label: {
+                            Label(model.text("全屏预览", "Full-screen preview"), systemImage: "arrow.up.left.and.arrow.down.right")
+                        }.buttonStyle(.plain).foregroundStyle(setupAccent)
+                    } else {
+                        Label(model.text("设置尚未完成", "Setup is incomplete"), systemImage: "exclamationmark.circle")
+                            .foregroundStyle(.secondary)
+                        Button(model.text("继续完成设置", "Review setup")) {
+                            model.setSetupStep(SetupFlow.firstIncomplete(installed: model.installed, selected: model.selectedInSystem, policy: model.lockPolicy))
+                        }.buttonStyle(.plain).foregroundStyle(setupAccent)
+                    }
+                    Spacer()
+                    Text(model.text("菜单操作示意", "Menu illustration")).font(.system(size: 10)).foregroundStyle(.secondary)
+                }.font(.system(size: 12)).frame(height: 38)
+                Spacer(minLength: 0)
+            }.padding(.top, 18)
         }
     }
 
@@ -156,8 +155,8 @@ struct SetupView: View {
                 model.advanceSetup()
             }
         } else if model.setupStep == .finish {
-            actionButton(model.finishingSetup ? model.text("正在检查…", "Checking…") : model.text("开始使用 QScreen", "Start using QScreen"), enabled: model.canAdvanceSetup && !model.finishingSetup) {
-                model.finishSetup()
+            actionButton(model.finishingSetup ? model.text("正在检查…", "Checking…") : model.text("完成并打开菜单", "Finish & open menu"), enabled: model.canAdvanceSetup && !model.finishingSetup) {
+                model.finishSetup(openQuickPicker: true)
             }
         } else {
             actionButton(model.text("下一步", "Continue"), enabled: model.canAdvanceSetup) { model.advanceSetup() }
@@ -238,8 +237,4 @@ struct SetupView: View {
         }
     }
 
-    private func readiness(_ title: String, done: Bool) -> some View {
-        Label(title, systemImage: done ? "checkmark.circle.fill" : "circle")
-            .font(.system(size: 14)).foregroundStyle(done ? setupAccent : .secondary)
-    }
 }
