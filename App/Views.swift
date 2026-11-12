@@ -182,6 +182,8 @@ struct SettingsView: View {
             HStack {
                 Text(model.text("设置", "Settings")).font(.system(size: 24, weight: .semibold))
                 Spacer()
+                Button(model.text("设置向导", "Setup guide")) { model.beginSetup() }
+                    .buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(accent)
                 LanguageSwitch(model: model)
                 if model.ready { Label(model.text("已就绪", "Ready"), systemImage: "checkmark.circle.fill").font(.system(size: 12)).foregroundStyle(accent) }
             }
@@ -319,9 +321,13 @@ struct QuickPicker: View {
             Divider().padding(.horizontal, 17)
             HStack {
                 Button {
-                    if !model.ready { model.settingsVisible = true }
-                    model.dismissPopover?()
-                    model.showWindow?()
+                    if !model.ready {
+                        model.beginSetup(resume: true)
+                        model.setSetupStep(SetupFlow.firstIncomplete(installed: model.installed, selected: model.selectedInSystem, policy: model.lockPolicy))
+                    } else {
+                        model.dismissPopover?()
+                        model.showWindow?()
+                    }
                 } label: {
                     Label(model.ready ? "QScreen" : model.text("完成设置", "Finish setup"), systemImage: "slider.horizontal.3")
                 }

@@ -87,19 +87,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         pickerClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             MainActor.assumeIsolated { self?.closePicker() }
         }
-        if !UserDefaults.standard.bool(forKey: "hasLaunched") {
+        if model.shouldPresentSetup && !CommandLine.arguments.contains("--smoke-test") && !CommandLine.arguments.contains("--setup-smoke-test") {
+            model.beginSetup(resume: UserDefaults.standard.bool(forKey: "onboardingStarted"))
             UserDefaults.standard.set(true, forKey: "hasLaunched")
-            showMainWindow()
         }
         if CommandLine.arguments.contains("--show") { showMainWindow() }
         if CommandLine.arguments.contains("--setup") {
-            model.settingsVisible = true
-            showMainWindow()
+            model.beginSetup()
         }
         if CommandLine.arguments.contains("--smoke-test") {
             showMainWindow()
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
                 self?.runSmokeTest()
+                NSApp.terminate(nil)
+            }
+        }
+        if CommandLine.arguments.contains("--setup-smoke-test") {
+            Task { @MainActor [weak self] in
+                await self?.runSetupSmokeTest()
                 NSApp.terminate(nil)
             }
         }
@@ -119,7 +124,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func showMainWindow() {
         model.refreshLockPolicy()
         if window == nil {
-            let controller = NSHostingController(rootView: MainView(model: model))
+            let controller = NSHostingController(rootView: QScreenRootView(model: model))
             let panel = NSWindow(contentViewController: controller)
             panel.title = "QScreen"
             panel.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
@@ -169,6 +174,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationDidResignActive(_ notification: Notification) {
         closePicker()
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        model.refreshReadiness()
+        model.refreshLockPolicy()
     }
 
     private func registerHotkey() {
@@ -355,6 +365,61 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                                     "screens": NSScreen.screens.count,
                                     "screenSizes": NSScreen.screens.map { "\(Int($0.frame.width))×\(Int($0.frame.height))" }]
         if let data = try? JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys]) {
+            try? data.write(to: URL(fileURLWithPath: "\(directory)/results.json"))
+        }
+    }
+
+    private func runSetupSmokeTest() async {
+        let defaults = UserDefaults.standard
+        let keys = ["onboardingStarted", "onboardingStep", "onboardingCompleted"]
+        var saved: [String: Any] = [:]
+        for key in keys { if let value = defaults.object(forKey: key) { saved[key] = value } }
+        let language = model.language, previousStep = model.setupStep
+        defer {
+            model.dismissSetup()
+            model.setSetupStep(previousStep)
+            model.setLanguage(language)
+            for key in keys {
+                if let value = saved[key] { defaults.set(value, forKey: key) }
+                else { defaults.removeObject(forKey: key) }
+            }
+        }
+        let directory = "/tmp/qscreen-setup-smoke"
+        try? FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+        defaults.set(false, forKey: "onboardingCompleted")
+        model.beginSetup()
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        var screenshots = 0
+        for language in ["zh", "en"] {
+            model.setLanguage(language)
+            for step in SetupStep.allCases {
+                model.setSetupStep(step)
+                try? await Task.sleep(nanoseconds: 120_000_000)
+                window?.contentView?.layoutSubtreeIfNeeded()
+                let path = "\(directory)/setup-\(language)-\(step.rawValue + 1).png"
+                captureView(window?.contentView, to: path)
+                if FileManager.default.fileExists(atPath: path) { screenshots += 1 }
+            }
+        }
+        model.setSetupStep(.password)
+        model.dismissSetup()
+        let pendingResumes = model.shouldPresentSetup
+        model.beginSetup(resume: true)
+        let progressRetained = model.setupStep == .password
+        model.setSetupStep(.finish)
+        model.finishSetup()
+        let deadline = Date().addingTimeInterval(7)
+        while model.finishingSetup && Date() < deadline { try? await Task.sleep(nanoseconds: 100_000_000) }
+        let completed = defaults.bool(forKey: "onboardingCompleted")
+        let completionSafe = model.ready ? completed && !model.setupVisible : !completed && model.setupVisible
+        let assets = ["wallpaper", "screen-saver", "password"].allSatisfy { name in
+            guard let url = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: "Setup") else { return false }
+            return NSImage(contentsOf: url) != nil
+        }
+        let result: [String: Any] = ["screenshots": screenshots, "bundledScreenshots": assets,
+                                    "pendingSetupResumes": pendingResumes, "progressRetained": progressRetained,
+                                    "completionSafe": completionSafe, "lockPolicy": model.lockPolicy.rawValue]
+        if let data = try? JSONSerialization.data(withJSONObject: result, options: [.sortedKeys, .prettyPrinted]) {
             try? data.write(to: URL(fileURLWithPath: "\(directory)/results.json"))
         }
     }

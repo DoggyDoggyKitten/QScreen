@@ -17,6 +17,10 @@ final class QScreenModel: ObservableObject {
     @Published private(set) var language = QSStateStore.language()
     @Published private(set) var customReason = QSStateStore.customReason()
     @Published private(set) var customCharacter = QSStateStore.customCharacter()
+    @Published private(set) var setupVisible = false
+    @Published private(set) var setupStep = SetupFlow.restoredStep(UserDefaults.standard.integer(forKey: "onboardingStep"))
+    @Published private(set) var finishingSetup = false
+    @Published var setupError: String?
     var languageDidChange: (() -> Void)?
     var showWindow: (() -> Void)?
     var showPreview: (() -> Void)?
@@ -31,6 +35,59 @@ final class QScreenModel: ObservableObject {
             .appendingPathComponent("Library/Screen Savers/QScreen.saver")
     }
     var ready: Bool { installed && lockPolicy == .immediate && selectedInSystem }
+    var shouldPresentSetup: Bool {
+        SetupFlow.shouldPresent(hasLaunched: UserDefaults.standard.bool(forKey: "hasLaunched"),
+                                started: UserDefaults.standard.bool(forKey: "onboardingStarted"),
+                                completed: UserDefaults.standard.bool(forKey: "onboardingCompleted"))
+    }
+    var canAdvanceSetup: Bool {
+        SetupFlow.canAdvance(setupStep, installed: installed, selected: selectedInSystem, policy: lockPolicy)
+    }
+    func beginSetup(resume: Bool = false) {
+        UserDefaults.standard.set(true, forKey: "onboardingStarted")
+        if !resume { setSetupStep(.install) }
+        setupVisible = true
+        settingsVisible = false
+        setupError = nil
+        dismissPopover?()
+        refreshReadiness()
+        refreshLockPolicy()
+        showWindow?()
+    }
+    func setSetupStep(_ step: SetupStep) {
+        setupStep = step
+        setupError = nil
+        UserDefaults.standard.set(step.rawValue, forKey: "onboardingStep")
+        if step == .password || step == .finish { refreshLockPolicy() }
+    }
+    func advanceSetup() {
+        refreshReadiness()
+        guard canAdvanceSetup, let next = SetupStep(rawValue: setupStep.rawValue + 1) else { return }
+        setSetupStep(next)
+    }
+    func dismissSetup() {
+        setupVisible = false
+        settingsVisible = true
+    }
+    func finishSetup() {
+        guard !finishingSetup else { return }
+        finishingSetup = true
+        Task { [weak self] in
+            guard let self else { return }
+            defer { self.finishingSetup = false }
+            self.lockPolicy = await Task.detached(priority: .userInitiated) { ScreenLockPolicy.read() }.value
+            self.refreshReadiness()
+            let next = SetupFlow.firstIncomplete(installed: self.installed, selected: self.selectedInSystem, policy: self.lockPolicy)
+            guard next == .finish else {
+                self.setSetupStep(next)
+                self.setupError = self.text("请先完成这一步，再结束设置。", "Complete this step before finishing setup.")
+                return
+            }
+            UserDefaults.standard.set(true, forKey: "onboardingCompleted")
+            self.setupVisible = false
+            self.settingsVisible = false
+        }
+    }
     var duration: Int { durations[selectedReason] ?? QSDefaultMinutes(selectedReason) }
     var customReasonValid: Bool { !QSNormalizedCustomReason(customReason).isEmpty }
     var canStart: Bool { !starting && (selectedReason != "custom" || customReasonValid) }
@@ -121,9 +178,8 @@ final class QScreenModel: ObservableObject {
         refreshReadiness()
         Diagnostics.log("away.request installed=\(installed) selection=\(selectedInSystem)")
         guard installed && selectedInSystem else {
-            dismissPopover?()
-            settingsVisible = true
-            showWindow?()
+            beginSetup(resume: true)
+            setSetupStep(SetupFlow.firstIncomplete(installed: installed, selected: selectedInSystem, policy: lockPolicy))
             return
         }
         let reason = overrideReason ?? selectedReason, minutes = overrideMinutes ?? duration
@@ -143,10 +199,8 @@ final class QScreenModel: ObservableObject {
             self.lockPolicy = policy
             Diagnostics.log("lock.policy.checked value=\(policy.rawValue)")
             guard policy == .immediate else {
-                self.dismissPopover?()
-                self.settingsVisible = true
-                self.showWindow?()
-                self.error = self.text("请先在系统锁屏设置中，将启动屏保后要求输入密码设为「立即」。", "In System Settings → Lock Screen, set the password requirement after the screen saver begins to Immediately.")
+                self.beginSetup(resume: true)
+                self.setSetupStep(.password)
                 return
             }
             let session = reason == "custom" ? QSCustomSession(customTitle, character, minutes, Date().timeIntervalSince1970)
