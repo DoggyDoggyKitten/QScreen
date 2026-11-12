@@ -412,11 +412,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         while model.finishingSetup && Date() < deadline { try? await Task.sleep(nanoseconds: 100_000_000) }
         let completed = defaults.bool(forKey: "onboardingCompleted")
         let completionSafe = model.ready ? completed && !model.setupVisible : !completed && model.setupVisible
-        let assets = ["wallpaper", "screen-saver", "password"].allSatisfy { name in
-            guard let url = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: "Setup") else { return false }
-            return NSImage(contentsOf: url) != nil
+        var illustrations = 0
+        for focus in SetupGuideFocus.allCases {
+            let view = SetupIllustrationView(frame: NSRect(origin: .zero, size: SetupIllustrationView.artboard))
+            view.focus = focus
+            let path = "\(directory)/illustration-\(focus.rawValue).png"
+            captureView(view, to: path)
+            if NSImage(contentsOfFile: path) != nil { illustrations += 1 }
         }
-        let result: [String: Any] = ["screenshots": screenshots, "bundledScreenshots": assets,
+        let result: [String: Any] = ["screenshots": screenshots, "illustrations": illustrations,
+                                    "illustrationSize": "680×328",
                                     "pendingSetupResumes": pendingResumes, "progressRetained": progressRetained,
                                     "completionSafe": completionSafe, "lockPolicy": model.lockPolicy.rawValue]
         if let data = try? JSONSerialization.data(withJSONObject: result, options: [.sortedKeys, .prettyPrinted]) {

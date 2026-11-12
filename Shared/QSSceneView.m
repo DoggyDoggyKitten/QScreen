@@ -70,78 +70,7 @@ static NSColor *backgroundColor(NSString *reason) {
                     @"restroom":@0xEEF3F0, @"away":@0xEDF2E4, @"offwork":@0x252D45}[reason] unsignedIntValue]);
 }
 
-@implementation QSSceneView
-- (instancetype)initWithFrame:(NSRect)frame {
-    if ((self = [super initWithFrame:frame])) {
-        _session = @{@"reason":@"away", @"endsAt":@0};
-        self.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    }
-    return self;
-}
-- (BOOL)isFlipped { return YES; }
-- (BOOL)isOpaque { return YES; }
-- (void)setSession:(NSDictionary *)session { _session = [session copy]; self.needsDisplay = YES; }
-- (void)setAnimationTime:(NSTimeInterval)value { _animationTime = value; self.needsDisplay = YES; }
-- (void)setReferenceTime:(NSTimeInterval)value { _referenceTime = value; self.needsDisplay = YES; }
-- (void)setCharacterOnly:(BOOL)value { _characterOnly = value; self.needsDisplay = YES; }
-
-- (void)drawRect:(NSRect)dirtyRect {
-    (void)dirtyRect;
-    NSString *reason = self.session[@"reason"] ?: @"away";
-    NSString *characterReason = QSSceneCharacter(self.session);
-    NSString *language = self.session[@"language"] ?: @"zh";
-    BOOL custom = [reason isEqual:@"custom"];
-    BOOL night = [characterReason isEqual:@"offwork"];
-    NSColor *ink = QSColor(night ? 0xF5EDDF : 0x333C38);
-    NSColor *muted = QSColor(night ? 0xC5C7D8 : 0x68746E);
-    [backgroundColor(characterReason) setFill]; NSRectFill(self.bounds);
-    CGFloat canvasW = self.characterOnly ? 500 : 1200, canvasH = self.characterOnly ? 470 : 800;
-    CGFloat scale = MIN(self.bounds.size.width / canvasW, self.bounds.size.height / canvasH);
-    if (scale <= 0) return;
-    [NSGraphicsContext saveGraphicsState];
-    NSAffineTransform *transform = NSAffineTransform.transform;
-    [transform translateXBy:(self.bounds.size.width - canvasW*scale)/2 yBy:(self.bounds.size.height - canvasH*scale)/2];
-    [transform scaleBy:scale]; [transform concat];
-    double t = NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion ? 0 : self.animationTime;
-    CGFloat bob = sin(t*1.8)*5;
-    CGFloat cx = self.characterOnly ? 250 : 600;
-    CGFloat cy = self.characterOnly ? 245 : 310;
-
-    if (!self.characterOnly) {
-        // Sparse moving details give the character space without competing with the status.
-        for (NSInteger i=0; i<9; i++) {
-            CGFloat x = 110 + ((i*137)%1000) + sin(t*.18+i)*12;
-            CGFloat y = 100 + ((i*79)%350) + cos(t*.25+i)*9;
-            NSColor *detail = [ink colorWithAlphaComponent:night ? .22 : .09];
-            if (i%3 == 0) {
-                stroke(@[pt(x-7,y),pt(x+7,y)], 3, detail);
-                stroke(@[pt(x,y-7),pt(x,y+7)], 3, detail);
-            } else ellipse(x,y, i%2 ? 7 : 11, i%2 ? 7 : 11,detail);
-        }
-        if (night) {
-            ellipse(905,110,70,70,QSColor(0xF6D99B));
-            ellipse(928,98,66,66,backgroundColor(characterReason));
-        }
-    }
-    ellipse(cx-132,cy+157,264,23,[ink colorWithAlphaComponent:.08]);
-    [NSGraphicsContext saveGraphicsState];
-    NSAffineTransform *character = NSAffineTransform.transform;
-    [character translateXBy:cx yBy:cy+bob]; [character concat];
-    [self drawCharacter:characterReason time:t];
-    [NSGraphicsContext restoreGraphicsState];
-
-    if (!self.characterOnly) {
-        // Small continuous drift protects fixed lettering without making it hard to read.
-        CGFloat drift = sin(t*.03)*9;
-        if (custom) customTitle(QSSceneTitle(self.session,language), NSMakeRect(80+drift,530,1040,160), ink);
-        else text(QSSceneTitle(self.session,language), NSMakeRect(80+drift,548,1040,120), 88, NSFontWeightSemibold, ink);
-        NSTimeInterval now = self.referenceTime > 0 ? self.referenceTime : NSDate.date.timeIntervalSince1970;
-        text(QSReturnTextInLanguage(self.session,now,language), NSMakeRect(80+drift,custom ? 708 : 671,1040,65), 39, NSFontWeightMedium, muted);
-    }
-    [NSGraphicsContext restoreGraphicsState];
-}
-
-- (void)drawCharacter:(NSString *)reason time:(double)t {
+static void drawCharacter(NSString *reason, double t, BOOL guiding) {
     NSColor *body=bodyColor(reason), *dark=QSColor(0x39443F), *cream=QSColor(0xFFF6E5);
     BOOL rabbit=[reason isEqual:@"meeting"], cat=[reason isEqual:@"coffee"], frog=[reason isEqual:@"away"];
     BOOL duck=[reason isEqual:@"restroom"], fox=[reason isEqual:@"offwork"], bear=[reason isEqual:@"lunch"];
@@ -207,6 +136,14 @@ static NSColor *backgroundColor(NSString *reason) {
         stroke(@[pt(-78,8),pt(-116,0)],3,dark); stroke(@[pt(-77,20),pt(-115,26)],3,dark);
         stroke(@[pt(78,8),pt(116,0)],3,dark); stroke(@[pt(77,20),pt(115,26)],3,dark);
     }
+    if (guiding) {
+        if (frog) {
+            rounded(-93,21,186,26,12,QSColor(0xDBAB74));
+            rounded(39,28,29,89,10,QSColor(0xDBAB74));
+        }
+        ellipse(56,60,40,60,body);
+        return;
+    }
     // Each state has its own action and prop, rather than just changing its color.
     if (bear) {
         NSBezierPath *rice=NSBezierPath.bezierPath;
@@ -257,4 +194,94 @@ static NSColor *backgroundColor(NSString *reason) {
         text(@"z",NSMakeRect(151,-137+z,47,53),38,NSFontWeightSemibold,QSColor(0xD8D3EA));
     }
 }
+
+@implementation QSSceneView
+- (instancetype)initWithFrame:(NSRect)frame {
+    if ((self = [super initWithFrame:frame])) {
+        _session = @{@"reason":@"away", @"endsAt":@0};
+        self.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    }
+    return self;
+}
+- (BOOL)isFlipped { return YES; }
+- (BOOL)isOpaque { return YES; }
+- (void)setSession:(NSDictionary *)session { _session = [session copy]; self.needsDisplay = YES; }
+- (void)setAnimationTime:(NSTimeInterval)value { _animationTime = value; self.needsDisplay = YES; }
+- (void)setReferenceTime:(NSTimeInterval)value { _referenceTime = value; self.needsDisplay = YES; }
+- (void)setCharacterOnly:(BOOL)value { _characterOnly = value; self.needsDisplay = YES; }
+
+// The guide shares the screen saver's vector artwork, with a resting paw and a pointing arm.
++ (void)drawGuideCharacter:(NSString *)reason atPoint:(NSPoint)origin pointingTo:(NSPoint)target {
+    const CGFloat scale = .34;
+    NSColor *body = bodyColor(reason);
+    NSPoint shoulder = NSMakePoint(origin.x-77*scale,origin.y+85*scale);
+    NSPoint wrist = NSMakePoint(target.x+14,target.y+3);
+    curve(shoulder.x,shoulder.y,wrist.x,wrist.y,
+          shoulder.x-12,shoulder.y+7,wrist.x+10,wrist.y+10,10,body);
+    ellipse(wrist.x-6,wrist.y-5,12,11,body);
+    stroke(@[pt(wrist.x-1,wrist.y-2),pt(target.x+3,target.y)],4.5,body);
+    stroke(@[pt(wrist.x+1,wrist.y+5),pt(wrist.x-3,wrist.y+1)],1.2,[QSColor(0x68746E) colorWithAlphaComponent:.35]);
+    [NSGraphicsContext saveGraphicsState];
+    NSAffineTransform *transform = NSAffineTransform.transform;
+    [transform translateXBy:origin.x yBy:origin.y]; [transform scaleBy:scale]; [transform concat];
+    drawCharacter(reason,0,YES);
+    [NSGraphicsContext restoreGraphicsState];
+}
+
+- (void)drawRect:(NSRect)dirtyRect {
+    (void)dirtyRect;
+    NSString *reason = self.session[@"reason"] ?: @"away";
+    NSString *characterReason = QSSceneCharacter(self.session);
+    NSString *language = self.session[@"language"] ?: @"zh";
+    BOOL custom = [reason isEqual:@"custom"];
+    BOOL night = [characterReason isEqual:@"offwork"];
+    NSColor *ink = QSColor(night ? 0xF5EDDF : 0x333C38);
+    NSColor *muted = QSColor(night ? 0xC5C7D8 : 0x68746E);
+    [backgroundColor(characterReason) setFill]; NSRectFill(self.bounds);
+    CGFloat canvasW = self.characterOnly ? 500 : 1200, canvasH = self.characterOnly ? 470 : 800;
+    CGFloat scale = MIN(self.bounds.size.width / canvasW, self.bounds.size.height / canvasH);
+    if (scale <= 0) return;
+    [NSGraphicsContext saveGraphicsState];
+    NSAffineTransform *transform = NSAffineTransform.transform;
+    [transform translateXBy:(self.bounds.size.width - canvasW*scale)/2 yBy:(self.bounds.size.height - canvasH*scale)/2];
+    [transform scaleBy:scale]; [transform concat];
+    double t = NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion ? 0 : self.animationTime;
+    CGFloat bob = sin(t*1.8)*5;
+    CGFloat cx = self.characterOnly ? 250 : 600;
+    CGFloat cy = self.characterOnly ? 245 : 310;
+
+    if (!self.characterOnly) {
+        // Sparse moving details give the character space without competing with the status.
+        for (NSInteger i=0; i<9; i++) {
+            CGFloat x = 110 + ((i*137)%1000) + sin(t*.18+i)*12;
+            CGFloat y = 100 + ((i*79)%350) + cos(t*.25+i)*9;
+            NSColor *detail = [ink colorWithAlphaComponent:night ? .22 : .09];
+            if (i%3 == 0) {
+                stroke(@[pt(x-7,y),pt(x+7,y)], 3, detail);
+                stroke(@[pt(x,y-7),pt(x,y+7)], 3, detail);
+            } else ellipse(x,y, i%2 ? 7 : 11, i%2 ? 7 : 11,detail);
+        }
+        if (night) {
+            ellipse(905,110,70,70,QSColor(0xF6D99B));
+            ellipse(928,98,66,66,backgroundColor(characterReason));
+        }
+    }
+    ellipse(cx-132,cy+157,264,23,[ink colorWithAlphaComponent:.08]);
+    [NSGraphicsContext saveGraphicsState];
+    NSAffineTransform *character = NSAffineTransform.transform;
+    [character translateXBy:cx yBy:cy+bob]; [character concat];
+    drawCharacter(characterReason,t,NO);
+    [NSGraphicsContext restoreGraphicsState];
+
+    if (!self.characterOnly) {
+        // Small continuous drift protects fixed lettering without making it hard to read.
+        CGFloat drift = sin(t*.03)*9;
+        if (custom) customTitle(QSSceneTitle(self.session,language), NSMakeRect(80+drift,530,1040,160), ink);
+        else text(QSSceneTitle(self.session,language), NSMakeRect(80+drift,548,1040,120), 88, NSFontWeightSemibold, ink);
+        NSTimeInterval now = self.referenceTime > 0 ? self.referenceTime : NSDate.date.timeIntervalSince1970;
+        text(QSReturnTextInLanguage(self.session,now,language), NSMakeRect(80+drift,custom ? 708 : 671,1040,65), 39, NSFontWeightMedium, muted);
+    }
+    [NSGraphicsContext restoreGraphicsState];
+}
+
 @end

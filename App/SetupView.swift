@@ -14,6 +14,7 @@ struct QScreenRootView: View {
 
 struct SetupView: View {
     @ObservedObject var model: QScreenModel
+    @State private var selectionFocus: SetupGuideFocus = .custom
 
     private func title(_ step: SetupStep) -> String {
         switch step {
@@ -88,6 +89,7 @@ struct SetupView: View {
             .padding(32).frame(maxWidth: .infinity, maxHeight: .infinity).background(Color.white)
         }
         .foregroundStyle(setupInk).frame(minWidth: 1000, minHeight: 672)
+        .onChange(of: model.setupStep) { _ in selectionFocus = .custom }
         .alert("QScreen", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) {
             Button(model.text("好", "OK")) { model.error = nil }
         } message: { Text(model.error ?? "") }
@@ -108,49 +110,20 @@ struct SetupView: View {
                 }
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
         case .wallpaper:
-            VStack(alignment: .leading, spacing: 18) {
-                Text(model.text("在「系统设置 → 墙纸」顶部，点击 Screen Saver…（屏幕保护程序）。", "In System Settings → Wallpaper, click Screen Saver… near the top."))
-                    .font(.system(size: 14)).fixedSize(horizontal: false, vertical: true)
-                SetupScreenshot(name: "wallpaper", model: model, topOnly: true)
-                Button(model.text("打开墙纸设置", "Open Wallpaper settings")) { model.openScreenSaverSettings() }
-                    .controlSize(.large)
-                Spacer(minLength: 0)
-                HStack {
-                    screenshotNote
-                    Spacer()
-                    Link(model.text("其他 macOS 版本", "Other macOS versions"), destination: URL(string: "https://support.apple.com/guide/mac-help/mchl4b68853d/mac")!)
-                        .font(.system(size: 11)).foregroundStyle(setupAccent)
-                }
+            guidePanel(.wallpaper, instruction: model.text("墙纸 → Screen Saver…（屏幕保护程序）", "Wallpaper → Screen Saver…")) {
+                settingsButton(model.text("打开墙纸设置", "Open Wallpaper settings")) { model.openScreenSaverSettings() }
             }
         case .select:
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .top, spacing: 20) {
-                    SetupScreenshot(name: "screen-saver", model: model)
-                    VStack(alignment: .leading, spacing: 20) {
-                        instruction(1, model.text("选择 Custom（自定）。", "Select Custom."))
-                        instruction(2, model.text("向下找到 Other（其他），选中 QScreen。", "Scroll to Other and choose QScreen."))
-                        instruction(3, model.text("确认显示 QScreen，点 Done（完成）。", "Check that QScreen is shown, then click Done."))
-                        Spacer(minLength: 0)
-                    }.frame(width: 174).padding(.top, 12)
-                }.frame(maxHeight: .infinity)
-                HStack {
-                    Button(model.text("打开系统设置", "Open System Settings")) { model.openScreenSaverSettings() }
-                    Spacer()
-                    screenshotNote
-                }
+            guidePanel(selectionFocus, instruction: "") {
+                settingsButton(model.text("打开系统设置", "Open System Settings")) { model.openScreenSaverSettings() }
             }
         case .password:
-            VStack(alignment: .leading, spacing: 16) {
-                Text(model.text("在「系统设置 → 锁屏」中，把启动屏保后要求输入密码设为 Immediately（立即）。", "In System Settings → Lock Screen, set Require password after screen saver begins or display is turned off to Immediately."))
-                    .font(.system(size: 14)).fixedSize(horizontal: false, vertical: true)
-                SetupScreenshot(name: "password", model: model, topOnly: true)
-                HStack {
-                    Button(model.text("打开锁屏设置", "Open Lock Screen settings")) { model.openLockSettings() }
-                    Button(model.text("重新检查", "Recheck")) { model.refreshLockPolicy() }
-                    Spacer()
-                    policyStatus
-                }.controlSize(.large)
-                screenshotNote
+            guidePanel(.password, instruction: model.text("锁屏 → 要求输入密码 → Immediately（立即）", "Lock Screen → Require password → Immediately")) {
+                settingsButton(model.text("打开锁屏设置", "Open Lock Screen settings")) { model.openLockSettings() }
+                Button(model.text("重新检查", "Recheck")) { model.refreshLockPolicy() }
+                    .buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(setupAccent)
+                Spacer(minLength: 8)
+                policyStatus.font(.system(size: 11))
             }
         case .finish:
             VStack(spacing: 24) {
@@ -199,17 +172,59 @@ struct SetupView: View {
         }.buttonStyle(.plain).disabled(!enabled).opacity(enabled ? 1 : 0.4)
     }
 
-    private func instruction(_ number: Int, _ text: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text("\(number)").font(.system(size: 12, weight: .semibold)).foregroundStyle(setupAccent)
-                .frame(width: 20, height: 20).background(setupAccent.opacity(0.09)).clipShape(Circle())
-            Text(text).font(.system(size: 13)).fixedSize(horizontal: false, vertical: true)
+    private func guidePanel<Actions: View>(_ focus: SetupGuideFocus, instruction: String, @ViewBuilder actions: () -> Actions) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Group {
+                if model.setupStep == .select {
+                    HStack(spacing: 10) {
+                        selectionChip(.custom, number: 1, title: "Custom", hint: model.text("自定", ""))
+                        selectionChip(.qscreen, number: 2, title: model.text("下滑至 Other → QScreen", "Scroll to Other → QScreen"), hint: "")
+                        selectionChip(.done, number: 3, title: "Done", hint: model.text("完成", ""))
+                    }
+                } else {
+                    Text(instruction).font(.system(size: 14, weight: .medium))
+                }
+            }.frame(height: 44, alignment: .leading)
+            SetupIllustration(focus: focus)
+                .frame(maxWidth: .infinity).frame(height: 328)
+                .accessibilityLabel(model.text("macOS 设置示意图，小动物指向需要点击的位置", "Illustrated macOS settings, with a character pointing to the control"))
+                .allowsHitTesting(false)
+            HStack(spacing: 16) {
+                actions()
+            }.frame(height: 38).padding(.top, 20)
+            Spacer(minLength: 12)
+            HStack {
+                Text(model.text("macOS 设置示意图", "Illustrated macOS settings"))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Link(model.text("其他 macOS 版本", "Other macOS versions"), destination: URL(string: "https://support.apple.com/guide/mac-help/mchl4b68853d/mac")!)
+                    .foregroundStyle(setupAccent)
+            }.font(.system(size: 10))
         }
     }
 
-    private var screenshotNote: some View {
-        Text(model.text("实机截图：macOS 27 · 英文系统界面", "Actual screenshots: macOS 27 · English system UI"))
-            .font(.system(size: 10)).foregroundStyle(.secondary)
+    private func selectionChip(_ focus: SetupGuideFocus, number: Int, title: String, hint: String) -> some View {
+        Button { selectionFocus = focus } label: {
+            HStack(spacing: 7) {
+                Text("\(number)").font(.system(size: 10, weight: .semibold))
+                    .frame(width: 20, height: 20)
+                    .foregroundStyle(selectionFocus == focus ? .white : setupAccent)
+                    .background(selectionFocus == focus ? setupAccent : setupAccent.opacity(0.08), in: Circle())
+                Text(title + (hint.isEmpty ? "" : " · " + hint)).font(.system(size: 11, weight: .medium))
+            }.padding(.horizontal, 9).padding(.vertical, 7)
+                .background(selectionFocus == focus ? setupAccent.opacity(0.07) : Color.clear, in: RoundedRectangle(cornerRadius: 9))
+        }.buttonStyle(.plain)
+            .accessibilityLabel(model.text("查看第 \(number) 步：", "Show step \(number): ") + title)
+            .accessibilityAddTraits(selectionFocus == focus ? .isSelected : [])
+    }
+
+    private func settingsButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: "arrow.up.forward")
+                .font(.system(size: 12, weight: .medium))
+                .padding(.horizontal, 14).padding(.vertical, 10)
+                .background(setupPaper, in: RoundedRectangle(cornerRadius: 9))
+        }.buttonStyle(.plain)
     }
 
     @ViewBuilder private var policyStatus: some View {
@@ -226,61 +241,5 @@ struct SetupView: View {
     private func readiness(_ title: String, done: Bool) -> some View {
         Label(title, systemImage: done ? "checkmark.circle.fill" : "circle")
             .font(.system(size: 14)).foregroundStyle(done ? setupAccent : .secondary)
-    }
-}
-
-private struct SetupScreenshot: View {
-    let name: String
-    @ObservedObject var model: QScreenModel
-    var topOnly = false
-    @State private var enlarged = false
-
-    private var screenshot: NSImage? {
-        guard let url = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: "Setup") else { return nil }
-        return NSImage(contentsOf: url)
-    }
-
-    var body: some View {
-        Group {
-            if let image = screenshot {
-                Group {
-                    if topOnly {
-                        Image(nsImage: image).resizable().scaledToFill().frame(height: 240, alignment: .top).clipped()
-                    } else {
-                        Image(nsImage: image).resizable().scaledToFit()
-                    }
-                }
-                .overlay {
-                    if topOnly {
-                        GeometryReader { geometry in
-                            let scale = geometry.size.width / image.size.width
-                            let target = name == "wallpaper" ? CGRect(x: 216, y: 137, width: 119, height: 28)
-                                                               : CGRect(x: 12, y: 91, width: 465, height: 51)
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(setupAccent, lineWidth: 2)
-                                .frame(width: target.width * scale, height: target.height * scale)
-                                .position(x: target.midX * scale, y: target.midY * scale)
-                        }.allowsHitTesting(false)
-                    }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(alignment: .bottomTrailing) {
-                    Button { enlarged = true } label: {
-                        Image(systemName: "arrow.up.left.and.arrow.down.right").padding(9)
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-                    }.buttonStyle(.plain).padding(7)
-                        .accessibilityLabel(model.text("放大截图", "Enlarge screenshot"))
-                }
-            } else {
-                Text(model.text("截图未能载入，请按上方路径打开系统设置。", "Screenshot unavailable. Use the settings path above."))
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
-            }
-        }
-        .sheet(isPresented: $enlarged) {
-            VStack(spacing: 16) {
-                if let image = screenshot { Image(nsImage: image).resizable().scaledToFit().frame(maxHeight: 600) }
-                Button(model.text("关闭", "Close")) { enlarged = false }.keyboardShortcut(.cancelAction)
-            }.padding(24).frame(width: 740)
-        }
     }
 }

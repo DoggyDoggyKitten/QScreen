@@ -38,6 +38,7 @@ FOUNDATION_EXPORT NSTimeInterval QSDisplayDeadline(NSDictionary *session, NSInte
 @end
 
 @interface QSSceneView : NSView
++ (void)drawGuideCharacter:(NSString *)reason atPoint:(NSPoint)origin pointingTo:(NSPoint)target;
 @property (nonatomic, copy) NSDictionary *session;
 @property (nonatomic) NSTimeInterval animationTime;
 @property (nonatomic) NSTimeInterval referenceTime;
