@@ -30,12 +30,24 @@ When creating a GitHub release, target the manifest's exact source commit, mark 
 
 ## Notarized distribution
 
-The current build uses ad hoc signing. Before publishing a normal consumer release:
+Enroll in the Apple Developer Program and install a Developer ID Application certificate with its matching private key in the login keychain. Keep credentials out of Git and chat. If importing the certificate fails with error -25294, explicitly target the login keychain; also install Apple's official Developer ID G2 intermediate certificate if needed. Do not override certificate trust settings.
 
-1. Enroll in the Apple Developer Program and configure a Developer ID Application certificate and its private key in Keychain. Keep credentials out of Git and chat.
-2. Update signing to use Developer ID, secure timestamps and the hardened runtime, signing nested screen saver code before the outer app.
-3. Submit all distributed executable code to Apple's notary service using `notarytool`; check the acceptance result and logs.
-4. Staple tickets to supported containers, verify Gatekeeper assessment, and test the app and native screen saver after an actual browser download on another Mac.
-5. Publish a stable release only after those checks pass. The preview packaging script intentionally does not offer a notarized-release mode.
+Create an app-specific password in your Apple Account. Save it interactively in your own terminal (omit `--password` so it is not recorded in shell history):
+
+```sh
+xcrun notarytool store-credentials QScreen --apple-id YOUR_APPLE_ACCOUNT --team-id YOUR_TEAM_ID --keychain ~/Library/Keychains/login.keychain-db
+```
+
+From a clean committed checkout, find the Developer ID Application identity with `security find-identity -v -p codesigning`, then run:
+
+```sh
+python3 scripts/notarize-release.py --identity YOUR_CERTIFICATE_SHA1 --team-id YOUR_TEAM_ID
+```
+
+The workflow builds both architectures, signs the screen saver with Developer ID, hardened runtime and a secure timestamp, notarizes and staples it, embeds it in the app, then signs/notarizes/staples the app. Finally it creates, signs, notarizes and staples a DMG. It validates both architectures' signatures, team IDs and tickets and runs Gatekeeper assessments. No extra entitlements or custom trust settings are added.
+
+Submission IDs, Apple logs and intermediate artifacts stay in ignored `build/notarization/VERSION/`. Rerun the same command after a timeout or network failure to resume the existing submissions. The workflow refuses to resume against changed source or a different identity. Preserve those records and increment the version for a new build. An Accepted response and a successful ticket/signature assessment are required before a final manifest can claim notarization.
+
+The final `*-notarized.dmg`, JSON manifest and checksums are in `build/notarization/VERSION/release/`. Signed intermediate images are kept separately for resumability. The script does not publish or replace a GitHub release. Test app launch, setup, saver installation/loading and authenticated lock after an actual browser download on another Mac before publishing a stable release. The manifest explicitly records that this manual test is still outstanding.
 
 Notarization is Apple's automated distribution check, not Mac App Store review. See [Apple's notarization documentation](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution).

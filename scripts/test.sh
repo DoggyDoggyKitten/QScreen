@@ -2,6 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p build/tests
+PYTHONDONTWRITEBYTECODE=1 python3 Tests/NotarizationTests.py
 xcrun clang -fobjc-arc -Wall -Wextra -Werror -I Shared \
   Shared/QSState.m Tests/StateTests.m -framework AppKit -framework ScreenSaver \
   -o build/tests/state-tests
