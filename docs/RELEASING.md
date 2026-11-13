@@ -1,14 +1,22 @@
 # Releases
 
-## Current notarized preview
+## Current stable release
+
+[QScreen 1.0.0](https://github.com/DoggyDoggyKitten/QScreen/releases/tag/v1.0.0) is the latest stable release. The screen saver, app and DMG were rebuilt, Developer ID signed, notarized and stapled; all three Apple submissions returned Accepted with no issues. Gatekeeper and mounted-package checks passed, and the exact source commit passed macOS CI.
+
+The owner confirmed cross-Mac download, installation, external-display and authenticated-lock testing of 0.5.4-rc.1 and authorized the stable release. The 1.0.0 App/Shared/screen-saver source differs only in version/build metadata from that tested baseline. This is recorded in [Acceptance](ACCEPTANCE.md); the newly rebuilt 1.0.0 artifact is not claimed to have separate owner-performed browser-download testing.
+
+Only the notarized DMG is uploaded as the app download. Earlier preview releases are retained.
+
+## Earlier notarized preview
 
 [QScreen 0.5.4 release candidate](https://github.com/DoggyDoggyKitten/QScreen/releases/tag/v0.5.4-rc.1) is Developer ID signed and notarized. The native screen saver, app and DMG each received Accepted responses with no reported issues. Their tickets were stapled and validated. Gatekeeper assessment passed on the build Mac, including the app read from the final DMG. The public download's SHA-256 matched the packaged artifact and its ticket validated.
 
-Only the notarized DMG is uploaded as an app download. This remains a prerelease while browser-download installation, setup and authenticated lock are verified on another Mac. Automated build, state, lock-policy, setup, bridge, rendering and notarization failure-path checks passed. These checks do not establish browser-download installation behavior on another machine.
+The owner subsequently confirmed browser-download installation, external-display and authenticated-lock testing on another Mac. Automated build, state, lock-policy, setup, bridge, rendering and notarization failure-path checks passed. The preview is retained for reference; prefer the stable release above.
 
 ## Earlier developer preview
 
-Version 0.5.3-preview.1 is ad hoc signed, not Developer ID signed or notarized. macOS may block the app or its screen saver. Prefer the current notarized preview above. No recommendation to disable Gatekeeper or other security protections is included.
+Version 0.5.3-preview.1 is ad hoc signed, not Developer ID signed or notarized. macOS may block the app or its screen saver. Prefer the stable release above. No recommendation to disable Gatekeeper or other security protections is included.
 
 Download the DMG or ZIP from the [preview release](https://github.com/DoggyDoggyKitten/QScreen/releases/tag/v0.5.3-preview.1). For private repositories, downloads are restricted to people with repository access. The source archives that GitHub adds automatically are not the app download.
 
