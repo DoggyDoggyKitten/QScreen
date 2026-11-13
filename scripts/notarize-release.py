@@ -39,7 +39,7 @@ def verify_bundle(path, team, identifier):
     requirement = (f'anchor apple generic and identifier "{identifier}" and '
                    f'certificate leaf[subject.OU] = "{team}" and '
                    'certificate leaf[field.1.2.840.113635.100.6.1.13] exists')
-    run('codesign', '--verify', '--strict', '--all-architectures', '-R', requirement, path)
+    run('codesign', '--verify', '--strict', '--all-architectures', '-R', '=' + requirement, path)
     for arch in ('arm64', 'x86_64'):
         result = subprocess.run(['codesign', '-d', '--verbose=4', '--arch', arch, str(path)],
                                 capture_output=True, text=True, check=True)

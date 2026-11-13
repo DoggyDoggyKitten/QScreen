@@ -6,6 +6,7 @@ import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
+import subprocess
 
 
 spec = importlib.util.spec_from_file_location('release', Path(__file__).resolve().parents[1] / 'scripts/notarize-release.py')
@@ -74,6 +75,15 @@ class NotarizationTests(unittest.TestCase):
                 release.notarize(self.payload, 'app', self.folder, self.options)
         self.assertEqual(context.exception.code, 75)
         self.assertEqual(json.loads((self.folder / 'app.submission.json').read_text())['id'], 'submission-id')
+
+    def test_requirement_is_inline_and_both_architectures_are_checked(self):
+        details = 'TeamIdentifier=3S26T578K3\nflags=0x10000(runtime)\nTimestamp=example\n'
+        with patch.object(release, 'run', return_value='') as runner, \
+             patch.object(release.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, '', details)) as signer:
+            release.verify_bundle(self.payload, '3S26T578K3', 'com.qscreen.app')
+        arguments = runner.call_args_list[0].args
+        self.assertTrue(arguments[arguments.index('-R') + 1].startswith('=anchor apple generic'))
+        self.assertEqual([call.args[0][4] for call in signer.call_args_list], ['arm64', 'x86_64'])
 
 
 if __name__ == '__main__':
