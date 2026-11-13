@@ -10,7 +10,7 @@ const presets = [
   { id: 'away', title: 'Stepped away', short: 'A little break', pal: 'Away Frog', minutes: 15, bg: '#edf2e4', body: '#9ebf93' },
   { id: 'offwork', title: 'Off for the day', short: 'Home time', pal: 'Sleepy Fox', minutes: 0, bg: '#252d45', body: '#df9673' },
 ];
-const state = { view: 1, reason: 'lunch', minutes: 30, menu: false, desktop: true };
+const state = { view: 0, reason: 'lunch', minutes: 30, menu: false, desktop: true };
 const icon = (name, size = 20) => {
   const paths = {
     download: '<path d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4"/>',
@@ -81,7 +81,7 @@ function animal(id, extraClass = '') {
 const selected = () => presets.find(p => p.id === state.reason);
 const returnText = () => state.reason === 'offwork' ? 'See you tomorrow' : `Back in about ${state.minutes} ${state.minutes === 1 ? 'minute' : 'minutes'}`;
 const download = (label = 'Download for Mac', small = false) => `<a class="button primary ${small ? 'small' : ''}" href="${DOWNLOAD}">${icon('apple', 21)}${label}${icon('arrow', 18)}</a>`;
-const header = () => `<header class="site-header"><a class="brand" href="?view=${state.view}" aria-label="QScreen home"><img src="assets/wordmark.png" width="160" height="54" alt="QScreen"></a><div class="header-actions"><a class="text-link github-link" href="${REPO}" target="_blank" rel="noopener noreferrer">${icon('github', 18)}<span>GitHub</span></a>${download('Get QScreen', true)}</div></header>`;
+const header = () => `<header class="site-header"><a class="brand" href="./" aria-label="QScreen home"><img src="assets/wordmark.png" width="160" height="54" alt="QScreen"></a><div class="header-actions">${state.view === 0 ? '<a class="text-link how-link" href="#how-it-works">How it works</a>' : ''}<a class="text-link github-link" href="${REPO}" target="_blank" rel="noopener noreferrer">${icon('github', 18)}<span>GitHub</span></a>${download('Get QScreen', true)}</div></header>`;
 const footer = () => `<footer class="site-footer"><span>QScreen 1.0.0</span><span>macOS 13+ <i>·</i> Apple Silicon & Intel <i>·</i> <a href="${REPO}" target="_blank" rel="noopener noreferrer">GitHub ${icon('arrow', 13)}</a></span></footer>`;
 const stamp = () => `<span class="trust-note">${icon('check', 14)} Apple notarized · Free & open source</span>`;
 const dots = '<span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span>';
@@ -112,19 +112,28 @@ function menuRows() {
 }
 
 function desktop() {
-  return `<div class="desktop-demo ${state.desktop ? '' : 'showing-saver'}"><div class="desktop-bar"><div class="desktop-mac">${icon('apple', 13)} <strong>Finder</strong><span>File</span><span>Edit</span><span>View</span></div><button class="menubar-trigger ${state.menu ? 'open' : ''}" data-toggle-menu aria-label="Open QScreen quick menu" aria-expanded="${state.menu}" aria-controls="quick-menu">${icon('menu', 19)}<span class="click-halo"></span></button><span class="desktop-clock">9:41</span></div><div class="desktop-wallpaper"><div class="wallpaper-blob blob-one"></div><div class="wallpaper-blob blob-two"></div><span class="desktop-hello">a little room<br>for a little break.</span><div class="desktop-dock" aria-hidden="true"><i>☺</i><i>✉</i><i>✎</i><i>☀</i><i>♫</i></div></div><div class="desktop-saver" inert aria-hidden="true">${scene()}<button class="return-demo" data-return-desktop>${icon('arrow', 14)} Back to demo desktop</button></div><div class="quick-menu ${state.menu ? 'is-open' : ''}" id="quick-menu" ${state.menu ? '' : 'hidden'}>${menuRows()}<div class="menu-footer">${icon('menu', 13)} QScreen <span>English</span></div></div><span class="desktop-prompt ${state.menu || !state.desktop ? 'is-hidden' : ''}">Start here ${icon('arrow', 17)}</span></div>`;
+  return `<div class="desktop-demo ${state.desktop ? '' : 'showing-saver'}"><div class="desktop-bar"><div class="desktop-mac">${icon('apple', 13)} <strong>Finder</strong><span>File</span><span>Edit</span><span>View</span></div><button class="menubar-trigger ${state.menu ? 'open' : ''}" data-toggle-menu aria-label="Open QScreen quick menu" aria-expanded="${state.menu}" aria-controls="quick-menu">${icon('menu', 23)}<span class="click-halo"></span><span class="menu-step" aria-hidden="true">1</span></button><span class="desktop-clock">9:41</span></div><div class="desktop-wallpaper"><div class="wallpaper-blob blob-one"></div><div class="wallpaper-blob blob-two"></div><span class="desktop-hello">a little room<br>for a little break.</span><div class="desktop-dock" aria-hidden="true"><i>☺</i><i>✉</i><i>✎</i><i>☀</i><i>♫</i></div></div><div class="desktop-saver" inert aria-hidden="true">${scene()}<button class="return-demo" data-return-desktop>${icon('arrow', 14)} Back to demo desktop</button></div><div class="quick-menu ${state.menu ? 'is-open' : ''}" id="quick-menu" ${state.menu ? '' : 'hidden'}>${menuRows()}<div class="menu-footer">${icon('menu', 13)} QScreen <span>English</span></div></div><button class="desktop-prompt ${state.menu || !state.desktop ? 'is-hidden' : ''}" data-demo-start><span>Click here to try it</span><svg class="prompt-arrow" viewBox="0 0 80 70" aria-hidden="true"><path d="M8 60C48 60 62 38 62 8M49 20 62 7 74 20"/></svg></button></div>`;
 }
 
 function plant() {
   return '<svg class="desk-plant" viewBox="0 0 140 235" aria-hidden="true"><path d="M70 171V59" stroke="#7b9974" stroke-width="6" stroke-linecap="round"/><path d="M70 131C9 143 1 81 35 88c22 5 26 24 35 43M72 102c59 12 68-50 34-43-22 5-26 24-34 43M70 74C21 64 25 20 49 30c16 8 17 29 21 44M73 58c32-22 19-57 1-44-13 10-9 30-1 44" fill="#9fba94"/><path d="M29 163h86l-13 61H41Z" fill="#d9c0a0"/><rect x="24" y="158" width="96" height="15" rx="5" fill="#cbb18f"/></svg>';
 }
 
+function deskSection() {
+  return `<section class="desk-hero" aria-labelledby="desk-title"><div class="desk-heading"><h1 id="desk-title">Away from your desk.<br><span class="sage-text">Still making someone smile.</span></h1></div><div class="desk-composition"><div class="desk-note"><div class="note-binding" aria-hidden="true"><i></i><i></i><i></i></div><span class="note-date">TODAY’S LITTLE BREAK</span><div class="note-current" data-status>${selected().title}</div>${reasonButtons('note-picks')}${timer('note-timer')}</div><div class="desk-monitor-area">${monitor('desk-monitor')}${plant()}<div class="desk-keyboard" aria-hidden="true"><div>${Array.from({ length: 36 }, () => '<i></i>').join('')}</div></div><div class="desk-mouse" aria-hidden="true"></div><div class="desk-cup" aria-hidden="true"><span></span></div><span class="desk-line" aria-hidden="true"></span></div></div><div class="desk-bottom">${download()}${stamp()}</div></section>`;
+}
+
+function howSection(home = false) {
+  return `<section class="click-hero" id="how-it-works" aria-labelledby="how-title"><div class="click-heading"><${home ? 'h2' : 'h1'} id="how-title">One little click.<br><span class="sage-text">And you’re off.</span></${home ? 'h2' : 'h1'}></div><div class="click-layout"><div class="click-instructions"><div class="step-item"><span class="step-number">1</span><div><h3>Click QScreen.</h3><p>Up in your Mac’s menu bar.</p></div></div><div class="step-item"><span class="step-number">2</span><div><h3>Pick your break.</h3></div></div><div class="keyboard-hint"><kbd>⌃</kbd><kbd>⌥</kbd><kbd>Q</kbd><span>works, too</span></div>${home ? '' : `<div class="click-cta">${download()}${stamp()}</div>`}</div><div class="click-demo-wrap">${desktop()}<span class="demo-caption"><span class="live-dot"></span> Try the menu. This is an interactive demo.</span></div></div></section>`;
+}
+
 const views = {
+  0: () => `${header()}${deskSection()}<a class="scroll-to-demo" href="#how-it-works">Try it in the menu bar ${icon('arrow', 18)}</a>${howSection(true)}${footer()}`,
   1: () => `${header()}<section class="hero hello-hero"><div class="hero-copy"><h1>A little<br> out of <span class="hand-underline">office.</span><span class="title-spark" aria-hidden="true">✳</span></h1><p class="hero-description">Let a little friend tell your coworkers<br>what you’re up to, and when you’ll be back.</p><div class="hero-cta">${download()}${stamp()}</div></div><div class="hello-preview"><span class="preview-sticker">Gone for a bite.<svg viewBox="0 0 100 60" aria-hidden="true"><path d="M3 8Q28 61 88 26m-12-3 15 2-6 13"/></svg></span>${monitor('hello-monitor')}<div class="floating-tag">${icon('lock', 13)} A real screen saver. A properly locked Mac.</div></div></section><section class="hello-controls"><div class="picker-caption">Every break has a little character.<span>Pick yours ${icon('arrow', 17)}</span></div>${reasonButtons('pills')}${timer()}</section>${footer()}`,
   2: () => `${header()}<section class="cinema-hero"><div class="cinema-heading"><h1>Taking a break?<br><span class="sage-text">Leave a little personality.</span></h1></div><div class="cinema-stage"><div class="cinema-preview">${scene()}<button class="cinema-expand icon-button" data-expand aria-label="Expand screen saver preview">${icon('expand', 19)}</button><span class="preview-corner">INTERACTIVE PREVIEW</span></div><div class="cinema-switcher"><span>Choose your company</span>${reasonButtons('rounds')}</div></div><div class="cinema-bottom">${timer()}${download()}</div></section>${footer()}`,
   3: () => `${header()}<section class="crew-hero"><div class="crew-heading"><div><h1>Meet your<br> <span class="hand-underline">away team.</span></h1></div><p class="hero-description">A friend for every kind of break.<br>Who’s covering your desk today?</p></div><div class="crew-layout"><div class="crew-picking">${reasonButtons('crew-grid')}</div><div class="crew-live"><div class="crew-live-top">${selectionLabel()}<button class="icon-button" data-expand aria-label="Expand screen saver preview">${icon('expand', 17)}</button></div>${scene()}${timer()}</div></div><div class="crew-bottom">${stamp()}${download('Take the crew with you')}</div></section>${footer()}`,
-  4: () => `${header()}<section class="click-hero"><div class="click-heading"><h1>One little click.<br><span class="sage-text">And you’re off.</span></h1></div><div class="click-layout"><div class="click-instructions"><div class="step-item"><span class="step-number">1</span><div><h2>Click QScreen.</h2><p>Up in your Mac’s menu bar.</p></div></div><div class="step-item"><span class="step-number">2</span><div><h2>Pick your break.</h2></div></div><div class="keyboard-hint"><kbd>⌃</kbd><kbd>⌥</kbd><kbd>Q</kbd><span>works, too</span></div><div class="click-cta">${download()}${stamp()}</div></div><div class="click-demo-wrap">${desktop()}<span class="demo-caption"><span class="live-dot"></span> Try the menu. This is an interactive demo.</span></div></div></section>${footer()}`,
-  5: () => `${header()}<section class="desk-hero"><div class="desk-heading"><h1>Away from your desk.<br><span class="sage-text">Still making someone smile.</span></h1></div><div class="desk-composition"><div class="desk-note"><div class="note-binding" aria-hidden="true"><i></i><i></i><i></i></div><span class="note-date">TODAY’S LITTLE BREAK</span><div class="note-current" data-status>${selected().title}</div>${reasonButtons('note-picks')}${timer('note-timer')}</div><div class="desk-monitor-area">${monitor('desk-monitor')}${plant()}<div class="desk-keyboard" aria-hidden="true"><div>${Array.from({ length: 36 }, () => '<i></i>').join('')}</div></div><div class="desk-mouse" aria-hidden="true"></div><div class="desk-cup" aria-hidden="true"><span></span></div><span class="desk-line" aria-hidden="true"></span></div></div><div class="desk-bottom">${download()}${stamp()}</div></section>${footer()}`,
+  4: () => `${header()}${howSection()}${footer()}`,
+  5: () => `${header()}${deskSection()}${footer()}`,
 };
 
 function sync() {
@@ -155,18 +164,22 @@ function syncMenu() {
   const trigger = document.querySelector('[data-toggle-menu]');
   trigger.classList.toggle('open', state.menu);
   trigger.setAttribute('aria-expanded', String(state.menu));
-  document.querySelector('.desktop-prompt').classList.toggle('is-hidden', state.menu || !state.desktop);
+  const prompt = document.querySelector('.desktop-prompt');
+  prompt.classList.toggle('is-hidden', state.menu || !state.desktop);
+  prompt.inert = state.menu || !state.desktop;
 }
 
 function render(view, push = true) {
-  state.view = views[view] ? view : 1;
+  state.view = views[view] ? view : 0;
   state.menu = false;
   state.desktop = true;
   document.body.dataset.design = String(state.view);
+  document.querySelector('.design-bar').hidden = state.view === 0;
+  document.querySelector('meta[name="robots"]').content = state.view === 0 ? 'index, follow' : 'noindex, nofollow';
   document.querySelectorAll('.design-options [data-view]').forEach(el => { const active = Number(el.dataset.view) === state.view; el.classList.toggle('active', active); if (active) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current'); });
   document.getElementById('main').innerHTML = views[state.view]();
-  const name = document.querySelector(`.design-options [data-view="${state.view}"]`).textContent.trim();
-  document.title = `QScreen — ${name}`;
+  const name = document.querySelector(`.design-options [data-view="${state.view}"]`)?.textContent.trim();
+  document.title = state.view === 0 ? 'QScreen — A little out of office' : `QScreen — ${name}`;
   if (push) history.pushState({ view: state.view }, '', `?view=${state.view}`);
   sync();
 }
@@ -194,7 +207,7 @@ document.addEventListener('click', event => {
   }
   const minutes = event.target.closest('[data-minutes]');
   if (minutes) { state.minutes = Number(minutes.dataset.minutes); sync(); return; }
-  if (event.target.closest('[data-toggle-menu]')) { state.menu = !state.menu; state.desktop = true; syncMenu(); if (state.menu) document.querySelector('.menu-row')?.focus(); return; }
+  if (event.target.closest('[data-toggle-menu], [data-demo-start]')) { state.menu = !state.menu; state.desktop = true; syncMenu(); if (state.menu) document.querySelector('.menu-row')?.focus(); return; }
   if (event.target.closest('[data-return-desktop]')) { state.desktop = true; state.menu = false; syncMenu(); document.querySelector('[data-toggle-menu]')?.focus(); return; }
   const expand = event.target.closest('[data-expand]');
   if (expand) {
@@ -215,7 +228,7 @@ document.addEventListener('click', event => {
 });
 
 document.addEventListener('keydown', event => {
-  if (state.view === 4 && event.ctrlKey && event.altKey && event.code === 'KeyQ') { event.preventDefault(); state.menu = !state.menu; state.desktop = true; syncMenu(); return; }
+  if ((state.view === 4 || state.view === 0) && event.ctrlKey && event.altKey && event.code === 'KeyQ') { event.preventDefault(); state.menu = !state.menu; state.desktop = true; syncMenu(); return; }
   if (event.key === 'Escape' && state.menu) { state.menu = false; syncMenu(); document.querySelector('[data-toggle-menu]')?.focus(); }
   const row = event.target.closest('.menu-row');
   if (row && ['ArrowDown', 'ArrowUp'].includes(event.key)) {
@@ -225,5 +238,6 @@ document.addEventListener('keydown', event => {
     rows[next].focus();
   }
 });
-window.addEventListener('popstate', () => render(Number(new URLSearchParams(location.search).get('view')) || 1, false));
-render(Number(new URLSearchParams(location.search).get('view')) || 1, false);
+const currentView = () => Number(new URLSearchParams(location.search).get('view')) || 0;
+window.addEventListener('popstate', () => render(currentView(), false));
+render(currentView(), false);
