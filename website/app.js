@@ -10,7 +10,7 @@ const presets = [
   { id: 'away', title: 'Stepped away', short: 'A little break', pal: 'Away Frog', minutes: 15, bg: '#edf2e4', body: '#9ebf93' },
   { id: 'offwork', title: 'Off for the day', short: 'Home time', pal: 'Sleepy Fox', minutes: 0, bg: '#252d45', body: '#df9673' },
 ];
-const state = { view: 0, reason: 'lunch', minutes: 30, menu: false, desktop: true };
+const state = { view: 0, reason: 'lunch', minutes: 30, menu: false, desktop: true, cardGuideDismissed: false };
 const icon = (name, size = 20) => {
   const paths = {
     download: '<path d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4"/>',
@@ -120,7 +120,7 @@ function plant() {
 }
 
 function deskSection(home = false) {
-  return `<section class="desk-hero" aria-labelledby="desk-title"><div class="desk-heading"><h1 id="desk-title">Away from your desk.<br><span class="sage-text">Still making someone smile.</span></h1></div><div class="desk-composition"><div class="desk-note"><div class="note-binding" aria-hidden="true"><i></i><i></i><i></i></div><span class="note-date">TODAY’S LITTLE BREAK</span><div class="note-current" data-status>${selected().title}</div><div class="note-hint"><svg viewBox="0 0 28 32" aria-hidden="true"><path d="M5 3v23l6-6 4.5 10 5-2.5-5-10H25Z"/></svg><span>Click an animal</span></div>${reasonButtons('note-picks')}${timer('note-timer')}</div><div class="desk-monitor-area">${monitor('desk-monitor')}${plant()}<div class="desk-keyboard" aria-hidden="true"><div>${Array.from({ length: 36 }, () => '<i></i>').join('')}</div></div><div class="desk-mouse" aria-hidden="true"></div><div class="desk-cup" aria-hidden="true"><span></span></div><span class="desk-line" aria-hidden="true"></span></div></div><div class="desk-bottom">${download()}${home ? `<a class="scroll-to-demo" href="#how-it-works">Try it in the menu bar ${icon('arrow', 18)}</a>` : ''}</div></section>`;
+  return `<section class="desk-hero" aria-labelledby="desk-title"><div class="desk-heading"><h1 id="desk-title">Away from your desk.<br><span class="sage-text">Still making someone smile.</span></h1></div><div class="desk-composition"><div class="desk-note"><div class="note-binding" aria-hidden="true"><i></i><i></i><i></i></div><span class="note-date">TODAY’S LITTLE BREAK</span><div class="note-current" data-status>${selected().title}</div><div class="note-picker"><div class="card-guide" ${state.cardGuideDismissed ? 'hidden' : ''}><span>Try a screen saver</span><svg viewBox="0 0 80 65" aria-hidden="true"><path d="M73 9C38 7 24 21 12 48m1-14-1 14 14-2"/></svg></div>${reasonButtons('note-picks')}</div>${timer('note-timer')}</div><div class="desk-monitor-area">${monitor('desk-monitor')}${plant()}<div class="desk-keyboard" aria-hidden="true"><div>${Array.from({ length: 36 }, () => '<i></i>').join('')}</div></div><div class="desk-mouse" aria-hidden="true"></div><div class="desk-cup" aria-hidden="true"><span></span></div><span class="desk-line" aria-hidden="true"></span></div></div><div class="desk-bottom">${download()}${home ? `<a class="scroll-to-demo" href="#how-it-works">Try it in the menu bar ${icon('arrow', 18)}</a>` : ''}</div></section>`;
 }
 
 function howSection(home = false) {
@@ -199,6 +199,10 @@ document.addEventListener('click', event => {
   if (view && !event.metaKey && !event.ctrlKey && !event.shiftKey) { event.preventDefault(); render(Number(view.dataset.view)); window.scrollTo({ top: 0, behavior: 'instant' }); return; }
   const reason = event.target.closest('[data-reason]');
   if (reason) {
+    if (reason.closest('.note-picks')) {
+      state.cardGuideDismissed = true;
+      document.querySelector('.card-guide').hidden = true;
+    }
     state.reason = reason.dataset.reason;
     state.minutes = selected().minutes;
     if (reason.hasAttribute('data-menu-choice')) { state.menu = false; state.desktop = false; syncMenu(); document.querySelector('[data-return-desktop]')?.focus(); }
