@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#faf8f0">
+  <title>QScreen — Five website directions</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .gallery-header{max-width:1280px;padding:35px 32px 29px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:20px}
+    .gallery-header img{width:150px;height:50px;object-fit:contain}
+    .gallery-header h1{font-size:19px;letter-spacing:-.5px;font-weight:800}
+    .gallery-header span{color:#687660;font-size:11px;display:block;margin-top:5px}
+    .gallery-heading{text-align:right}
+    .gallery-grid{max-width:1280px;margin:0 auto;padding:0 32px 35px;display:flex;gap:22px;flex-wrap:wrap;justify-content:center}
+    .gallery-card{width:calc((100% - 44px)/3);min-width:0;overflow:hidden;border:1px solid #dfe4d5;border-radius:15px;background:#fffdf7;transition:transform .2s,box-shadow .2s,border-color .2s}
+    .gallery-card:hover{transform:translateY(-4px);box-shadow:0 14px 28px #3f5d4212;border-color:#b9c9ab}
+    .gallery-card img{display:block;width:100%;height:auto;aspect-ratio:1.32;object-fit:cover;object-position:top;border-bottom:1px solid #e6e9dc}
+    .gallery-card figcaption{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:15px 16px;font-size:12px;font-weight:800}
+    .gallery-card figcaption b{font-size:10px;color:#8b9e7d;margin-right:8px;font-weight:700}
+    .gallery-card figure{margin:0}.gallery-arrow{font-size:18px;color:#879d78}
+    .gallery-footer{max-width:1216px;margin:0 auto;padding:20px 0 28px;border-top:1px solid #e2e7d9;color:#687660;font-size:11px;text-align:center}
+    @media(max-width:1000px){.gallery-card{width:calc((100% - 22px)/2)}}
+    @media(max-width:600px){.gallery-header{padding:23px 22px}.gallery-header img{width:125px}.gallery-header h1{font-size:16px}.gallery-header span{font-size:9px}.gallery-grid{padding:0 22px 25px;gap:18px}.gallery-card{width:100%}.gallery-card figcaption{font-size:13px}.gallery-footer{margin:0 22px;font-size:10px}}
+    @media(prefers-reduced-motion:reduce){.gallery-card{transition:none}.gallery-card:hover{transform:none}}
+  </style>
+</head>
+<body>
+  <header class="gallery-header">
+    <img src="assets/wordmark.png" width="150" height="50" alt="QScreen">
+    <div class="gallery-heading"><h1>Five website directions</h1><span>Open any design to try it.</span></div>
+  </header>
+  <main class="gallery-grid" aria-label="Five interactive QScreen website designs">
+    <a class="gallery-card" href="index.html?view=1"><figure><img src="assets/previews/01.jpg" alt="Cream and sage split layout with a screen saver on a monitor and six reason selectors"><figcaption><span><b>01</b>The little hello</span><span class="gallery-arrow" aria-hidden="true">↗</span></figcaption></figure></a>
+    <a class="gallery-card" href="index.html?view=2"><figure><img src="assets/previews/02.jpg" alt="Large central screen saver with a floating animal selector underneath"><figcaption><span><b>02</b>Screen time</span><span class="gallery-arrow" aria-hidden="true">↗</span></figcaption></figure></a>
+    <a class="gallery-card" href="index.html?view=3"><figure><img src="assets/previews/03.jpg" alt="Six character cards beside a live screen saver preview"><figcaption><span><b>03</b>Meet the crew</span><span class="gallery-arrow" aria-hidden="true">↗</span></figcaption></figure></a>
+    <a class="gallery-card" href="index.html?view=4"><figure><img src="assets/previews/04.jpg" alt="Two-step tutorial beside an interactive Mac menu-bar demonstration"><figcaption><span><b>04</b>One little click</span><span class="gallery-arrow" aria-hidden="true">↗</span></figcaption></figure></a>
+    <a class="gallery-card" href="index.html?view=5"><figure><img src="assets/previews/05.jpg" alt="Illustrated desk with a monitor, plant and interactive break notepad"><figcaption><span><b>05</b>Your desk, away</span><span class="gallery-arrow" aria-hidden="true">↗</span></figcaption></figure></a>
+  </main>
+  <footer class="gallery-footer">Six screen savers. Five directions. All interactive.</footer>
+</body>
+</html>

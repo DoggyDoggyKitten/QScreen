@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#faf8f0">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="description" content="Five interactive design previews for QScreen, a little out-of-office screen saver for your Mac.">
+    <title>QScreen — Design previews</title>
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+    <link rel="preload" href="assets/Nunito.ttf" as="font" type="font/ttf" crossorigin>
+    <link rel="stylesheet" href="styles.css">
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to preview</a>
+    <aside class="design-bar" aria-label="Choose a website design">
+      <a class="design-label" href="compare.html" aria-label="View all five designs">ALL DESIGNS <span>01—05</span></a>
+      <nav class="design-options" aria-label="Design variations">
+        <a href="?view=1" data-view="1"><span>01</span> The little hello</a>
+        <a href="?view=2" data-view="2"><span>02</span> Screen time</a>
+        <a href="?view=3" data-view="3"><span>03</span> Meet the crew</a>
+        <a href="?view=4" data-view="4"><span>04</span> One little click</a>
+        <a href="?view=5" data-view="5"><span>05</span> Your desk, away</a>
+      </nav>
+    </aside>
+    <main id="main" tabindex="-1"></main>
+    <div class="sr-only" role="status" aria-live="polite" id="announcement"></div>
+    <noscript><p class="no-script">These interactive previews need JavaScript. <a href="https://github.com/DoggyDoggyKitten/QScreen/releases/latest">Download QScreen</a>.</p></noscript>
+  </body>
+</html>
